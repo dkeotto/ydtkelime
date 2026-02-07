@@ -21,11 +21,14 @@ app.use(express.json());
 const db = new sqlite3.Database('./database.sqlite');
 
 db.exec(`
-  CREATE TABLE IF NOT EXISTS rooms (
-    id TEXT PRIMARY KEY,
-    code TEXT UNIQUE NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    is_active INTEGER DEFAULT 1
+  CREATE TABLE IF NOT EXISTS room_users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_id TEXT NOT NULL,
+    socket_id TEXT NOT NULL,
+    username TEXT NOT NULL,
+    is_host INTEGER DEFAULT 0,
+    joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (room_id) REFERENCES rooms(id)
   );
   
   CREATE TABLE IF NOT EXISTS room_users (
