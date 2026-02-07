@@ -3,7 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
-const Database = require('better-sqlite3');
+const sqlite3 = require('sqlite3').verbose();
 const { v4: uuidv4 } = require('uuid');
 
 const app = express();
@@ -18,7 +18,7 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 
-const db = new Database('./database.sqlite');
+const db = new sqlite3.Database('./database.sqlite');
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS rooms (
