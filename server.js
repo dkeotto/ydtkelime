@@ -18,7 +18,38 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 
-const db = new sqlite3.Database('./database.sqlite');
+// SQLite yerine geçici çözüm - object olarak tut
+const rooms = new Map();
+const roomUsers = new Map();
+const roomStats = {};
+
+// Database fonksiyonlarını mockla
+const db = {
+  prepare: (sql) => ({
+    run: (...params) => {
+      console.log('SQL:', sql, params);
+      return { lastInsertRowid: Date.now() };
+    },
+    get: (...params) => {
+      // Basit sorgular için mock data
+      if (sql.includes('rooms WHERE code')) {
+        const code = params[0];
+        return rooms.get(code) || null;
+      }
+      if (sql.includes('room_users WHERE room_id')) {
+        return [];
+      }
+      return null;
+    },
+    all: (...params) => {
+      return [];
+    }
+  }),
+  exec: (sql) => {
+    console.log('EXEC:', sql);
+    // Tablo oluşturma komutlarını görmezden gel
+  }
+};
 
 // DATABASE BAŞLATMA - EKLE BUNU
 db.exec(`
