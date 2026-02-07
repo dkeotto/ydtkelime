@@ -1,4 +1,3 @@
-const sqlite3 = require('sqlite3').verbose();
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -18,58 +17,10 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 
-// SQLite yerine geçici çözüm - object olarak tut
-const rooms = new Map();
-const roomUsers = new Map();
-const roomStats = {};
-
-// Database fonksiyonlarını mockla
-const db = {
-  prepare: (sql) => ({
-    run: (...params) => {
-      console.log('SQL:', sql, params);
-      return { lastInsertRowid: Date.now() };
-    },
-    get: (...params) => {
-      // Basit sorgular için mock data
-      if (sql.includes('rooms WHERE code')) {
-        const code = params[0];
-        return rooms.get(code) || null;
-      }
-      if (sql.includes('room_users WHERE room_id')) {
-        return [];
-      }
-      return null;
-    },
-    all: (...params) => {
-      return [];
-    }
-  }),
-  exec: (sql) => {
-    console.log('EXEC:', sql);
-    // Tablo oluşturma komutlarını görmezden gel
-  }
-};
-
-// DATABASE BAŞLATMA - EKLE BUNU
-db.exec(`
-  CREATE TABLE IF NOT EXISTS rooms (
-    id TEXT PRIMARY KEY,
-    code TEXT UNIQUE NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    is_active INTEGER DEFAULT 1
-  );
-  
-  CREATE TABLE IF NOT EXISTS room_users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    room_id TEXT NOT NULL,
-    socket_id TEXT NOT NULL,
-    username TEXT NOT NULL,
-    is_host INTEGER DEFAULT 0,
-    joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (room_id) REFERENCES rooms(id)
-  );
-`);
+// IN-MEMORY DATABASE (SQLite yerine)
+const rooms = new Map(); // roomCode -> {id, code, createdAt}
+const roomUsers = new Map(); // socketId -> {roomCode, username, isHost}
+const roomStats = {}; // roomCode -> {username: {known, unknown, studied}}
 
 function generateRoomCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -81,8 +32,12 @@ app.post('/api/rooms', (req, res) => {
     const roomId = uuidv4();
     const roomCode = generateRoomCode();
     
-    const stmt = db.prepare('INSERT INTO rooms (id, code) VALUES (?, ?)');
-    stmt.run(roomId, roomCode);
+    rooms.set(roomCode, {
+      id: roomId,
+      code: roomCode,
+      createdAt: new Date(),
+      isActive: true
+    });
     
     res.json({ success: true, roomId, roomCode });
   } catch (error) {
@@ -92,17 +47,11 @@ app.post('/api/rooms', (req, res) => {
 });
 
 app.get('/api/rooms/:code', (req, res) => {
-  try {
-    const stmt = db.prepare('SELECT * FROM rooms WHERE code = ? AND is_active = 1');
-    const room = stmt.get(req.params.code);
-    
-    if (room) {
-      res.json({ success: true, room });
-    } else {
-      res.status(404).json({ success: false, error: 'Room not found' });
-    }
-  } catch (error) {
-    res.status(500).json({ success: false, error: 'Server error' });
+  const room = rooms.get(req.params.code);
+  if (room && room.isActive) {
+    res.json({ success: true, room });
+  } else {
+    res.status(404).json({ success: false, error: 'Room not found' });
   }
 });
 
@@ -110,16 +59,17 @@ app.get('/api/rooms/:code', (req, res) => {
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
   
-  let currentRoom = null;
-  let currentUsername = null;
-  
   socket.on('create-room', ({ username }, callback) => {
     try {
       const roomId = uuidv4();
       const roomCode = generateRoomCode();
       
-      const stmt = db.prepare('INSERT INTO rooms (id, code) VALUES (?, ?)');
-      stmt.run(roomId, roomCode);
+      rooms.set(roomCode, {
+        id: roomId,
+        code: roomCode,
+        createdAt: new Date(),
+        isActive: true
+      });
       
       callback({ success: true, roomCode });
     } catch (error) {
@@ -130,41 +80,46 @@ io.on('connection', (socket) => {
   
   socket.on('join-room', ({ roomCode, username, isHost }) => {
     try {
-      const room = db.prepare('SELECT * FROM rooms WHERE code = ? AND is_active = 1').get(roomCode);
+      const room = rooms.get(roomCode);
       
-      if (!room) {
+      if (!room || !room.isActive) {
         socket.emit('error', { message: 'Oda bulunamadı veya kapalı' });
         return;
       }
       
-      const existingUser = db.prepare('SELECT * FROM room_users WHERE room_id = ? AND username = ?').get(room.id, username);
-      if (existingUser) {
-        socket.emit('error', { message: 'Bu kullanıcı adı odada kullanılıyor' });
-        return;
+      // Check if username exists in room
+      for (const [socketId, user] of roomUsers) {
+        if (user.roomCode === roomCode && user.username === username) {
+          socket.emit('error', { message: 'Bu kullanıcı adı odada kullanılıyor' });
+          return;
+        }
       }
       
       socket.join(roomCode);
-      currentRoom = roomCode;
-      currentUsername = username;
-      
-      const stmt = db.prepare('INSERT INTO room_users (room_id, socket_id, username, is_host) VALUES (?, ?, ?, ?)');
-      stmt.run(room.id, socket.id, username, isHost ? 1 : 0);
+      roomUsers.set(socket.id, { roomCode, username, isHost });
       
       if (!roomStats[roomCode]) {
         roomStats[roomCode] = {};
       }
       roomStats[roomCode][username] = { known: 0, unknown: 0, studied: 0 };
       
-      socket.to(roomCode).emit('user-joined', { username, socketId: socket.id });
+      // Get all users in room
+      const users = [];
+      for (const [socketId, user] of roomUsers) {
+        if (user.roomCode === roomCode) {
+          users.push({ username: user.username, isHost: user.isHost });
+        }
+      }
       
-      const users = db.prepare('SELECT username, socket_id, is_host FROM room_users WHERE room_id = ?').all(room.id);
       socket.emit('room-joined', { 
         roomCode, 
-        users: users.map(u => ({ username: u.username, isHost: u.is_host === 1 })),
+        users,
         isHost
       });
       
       socket.emit('sync-stats', { stats: roomStats[roomCode] });
+      socket.to(roomCode).emit('user-joined', { username, socketId: socket.id });
+      socket.to(roomCode).emit('sync-stats', { stats: roomStats[roomCode] });
       
       console.log(`${username} joined room ${roomCode}`);
     } catch (error) {
@@ -181,12 +136,9 @@ io.on('connection', (socket) => {
   });
 
   socket.on('change-word', ({ roomCode, wordIndex }) => {
-    const room = db.prepare('SELECT id FROM rooms WHERE code = ?').get(roomCode);
-    if (room) {
-      const user = db.prepare('SELECT is_host FROM room_users WHERE socket_id = ? AND room_id = ?').get(socket.id, room.id);
-      if (user && user.is_host === 1) {
-        socket.to(roomCode).emit('sync-word', { wordIndex });
-      }
+    const user = roomUsers.get(socket.id);
+    if (user && user.roomCode === roomCode && user.isHost) {
+      socket.to(roomCode).emit('sync-word', { wordIndex });
     }
   });
 
@@ -196,24 +148,29 @@ io.on('connection', (socket) => {
   
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
-    if (currentRoom && currentUsername) {
-      handleUserLeave(socket, currentRoom, currentUsername);
+    const user = roomUsers.get(socket.id);
+    if (user) {
+      handleUserLeave(socket, user.roomCode, user.username);
     }
   });
   
   function handleUserLeave(socket, roomCode, username) {
     try {
-      const room = db.prepare('SELECT id FROM rooms WHERE code = ?').get(roomCode);
-      if (!room) return;
-      
-      const stmt = db.prepare('DELETE FROM room_users WHERE socket_id = ? AND room_id = ?');
-      stmt.run(socket.id, room.id);
+      roomUsers.delete(socket.id);
       
       if (roomStats[roomCode]) {
         delete roomStats[roomCode][username];
         
-        const remainingUsers = db.prepare('SELECT COUNT(*) as count FROM room_users WHERE room_id = ?').get(room.id);
-        if (remainingUsers.count === 0) {
+        // Check if room is empty
+        let roomEmpty = true;
+        for (const user of roomUsers.values()) {
+          if (user.roomCode === roomCode) {
+            roomEmpty = false;
+            break;
+          }
+        }
+        
+        if (roomEmpty) {
           delete roomStats[roomCode];
         } else {
           io.to(roomCode).emit('user-left', { username });
@@ -229,7 +186,7 @@ io.on('connection', (socket) => {
   }
 });
 
-// Static files - HER ZAMAN
+// Static files
 app.use(express.static(path.join(__dirname, 'client/dist')));
 
 app.get('*', (req, res) => {
