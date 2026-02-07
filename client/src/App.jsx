@@ -2,16 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { io } from 'socket.io-client';
 import './App.css';
 
-const socket = io(window.location.origin, {  // SOCKET_URL yerine window.location.origin
-  transports: ['websocket', 'polling'],
-  timeout: 10000,
-  reconnectionAttempts: 5,
-  reconnectionDelay: 1000
-});
-
-socket.io.on('upgradeError', (err) => {
-  console.warn('Socket.IO upgrade error:', err);
-});
+const socket = io(window.location.origin);
 
 const wordsData = [
   { term: "abandon", meaning: "terk etmek", hint: "bırakmak", example: "They abandoned the project." },
