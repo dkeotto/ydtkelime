@@ -215,7 +215,11 @@ callback({
       });
       
       // Tüm odadakilere güncel stats gönder
-      io.to(roomCode).emit('sync-stats', { stats });
+       io.to(roomCode).emit('sync-stats', { 
+    stats: roomStat,
+    users: users  // ← BUNU EKLE
+  });
+
       
     } catch (error) {
       console.error('❌ Error joining room:', error);
@@ -237,7 +241,10 @@ callback({
         };
         
         // Tüm odadakilere gönder
-        io.to(roomCode).emit('sync-stats', { stats: roomStat });
+        io.to(roomCode).emit('sync-stats', { 
+  stats: roomStat,
+  users: users  // Tüm kullanıcı listesini de gönder
+});
         
         console.log(`📊 Stats updated: ${username} in ${roomCode}`, roomStat[username]);
       }

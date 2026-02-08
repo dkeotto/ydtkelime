@@ -2233,17 +2233,17 @@ function App() {
       setUsers(usersList);
     });
 
-    socket.on('room-joined', ({ roomCode, users, isHost: hostStatus, stats }) => {
-      console.log('Odaya katılındı:', roomCode, 'Kullanıcılar:', users);
-      setRoomCode(roomCode);
-      setUsers(users || []);
-      setIsHost(hostStatus || false);
-      setIsInRoom(true);
-      setRoomStats(stats || {});
-      setError('');
-      setLoading(false);
-      setCurrentView('room');
-    });
+   socket.on('room-joined', ({ roomCode, users, isHost: hostStatus, stats }) => {
+  console.log('Odaya katılındı:', roomCode, 'Kullanıcılar:', users);
+  setRoomCode(roomCode);
+  setUsers(users || []);  // ← BU ÖNEMLİ
+  setIsHost(hostStatus || false);
+  setIsInRoom(true);
+  setRoomStats(stats || {});
+  setError('');
+  setLoading(false);
+  setCurrentView('room');
+});
 
     socket.on('sync-word', ({ wordIndex }) => {
       setCurrentWordIndex(wordIndex);
