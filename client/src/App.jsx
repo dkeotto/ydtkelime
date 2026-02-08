@@ -2138,7 +2138,6 @@ function App() {
   const [isInRoom, setIsInRoom] = useState(false);
   const [isHost, setIsHost] = useState(false);
 
-  // Matching Game States
   const [matchingGame, setMatchingGame] = useState(false);
   const [matchingCards, setMatchingCards] = useState([]);
   const [selectedCards, setSelectedCards] = useState([]);
@@ -2181,7 +2180,6 @@ function App() {
     socket.on('user-joined', ({ username, socketId, isHost }) => {
       console.log('Kullanıcı katıldı:', username, socketId);
       setUsers(prev => {
-        // Aynı kullanıcı varsa ekleme
         if (!prev.find(u => u.username === username)) {
           return [...prev, { username, socketId, isHost: isHost || false }];
         }
@@ -2210,7 +2208,17 @@ function App() {
       setLoading(false);
     });
 
+    // Timeout - 10 saniye sonra loading'i kapat
+    const timeout = setTimeout(() => {
+      if (loading) {
+        console.log('Timeout: loading kapatılıyor');
+        setLoading(false);
+        setError('Bağlantı zaman aşımına uğradı, tekrar deneyin');
+      }
+    }, 10000);
+
     return () => {
+      clearTimeout(timeout);
       socket.off('connect_error');
       socket.off('connect');
       socket.off('room-joined');
@@ -2220,9 +2228,8 @@ function App() {
       socket.off('sync-word');
       socket.off('error');
     };
-  }, []);
+  }, [loading]);
 
-  // Matching Game Timer
   useEffect(() => {
     if (matchingGame && !gameFinished && matchedPairs.length < 8) {
       const timer = setInterval(() => {
@@ -2241,7 +2248,7 @@ function App() {
     );
   }, [sortedWordsList, searchTerm]);
 
-  const createRoom = async () => {
+  const createRoom = () => {
     const usernameInput = document.getElementById('username-input');
     const usernameValue = usernameInput ? usernameInput.value.trim() : '';
     
@@ -2255,15 +2262,14 @@ function App() {
     setUsername(usernameValue);
     
     const newRoomCode = Math.floor(100000 + Math.random() * 900000).toString();
-    setRoomCode(newRoomCode);
+    
+    console.log('Oda oluşturuluyor:', newRoomCode, 'Kullanıcı:', usernameValue);
     
     socket.emit('join-room', { 
       roomCode: newRoomCode, 
       username: usernameValue,
       isHost: true
     });
-    
-    // State güncellemeleri room-joined event'inde yapılacak
   };
 
   const joinRoom = () => {
@@ -2286,13 +2292,13 @@ function App() {
     setUsername(usernameValue);
     setJoinCode(codeValue);
     
+    console.log('Odaya katılıyor:', codeValue, 'Kullanıcı:', usernameValue);
+    
     socket.emit('join-room', { 
       roomCode: codeValue, 
       username: usernameValue,
       isHost: false
     });
-    
-    // State güncellemeleri room-joined event'inde yapılacak
   };
 
   const triggerCooldown = () => {
@@ -2327,7 +2333,6 @@ function App() {
     }, 1200);
   };
 
-  // Matching Game Functions
   const startMatchingGame = () => {
     const selectedWords = [...words].sort(() => Math.random() - 0.5).slice(0, 8);
     const cards = [];
@@ -2371,7 +2376,6 @@ function App() {
       setMoves(prev => prev + 1);
       
       if (newSelected[0].pairId === newSelected[1].pairId) {
-        // Match found
         playSound('correct');
         setMatchedPairs(prev => [...prev, card.pairId]);
         setSelectedCards([]);
@@ -2381,7 +2385,6 @@ function App() {
           if (gameTimer) clearInterval(gameTimer);
         }
       } else {
-        // No match
         playSound('wrong');
         setTimeout(() => {
           setSelectedCards([]);
@@ -2955,7 +2958,9 @@ function App() {
         />
       </div>
       <div className="actions">
-        <button onClick={createRoom} disabled={loading}>{loading ? 'Oluşturuluyor...' : '🎮 Yeni Oda Oluştur'}</button>
+        <button onClick={createRoom} disabled={loading}>
+          {loading ? 'Oluşturuluyor...' : '🎮 Yeni Oda Oluştur'}
+        </button>
         <div className="or">veya</div>
         <input 
           id="joincode-input"
@@ -2965,7 +2970,9 @@ function App() {
           maxLength={6}
           style={{width: '100%', padding: '15px'}}
         />
-        <button onClick={joinRoom} disabled={loading}>{loading ? 'Katılıyor...' : '🚪 Odaya Katıl'}</button>
+        <button onClick={joinRoom} disabled={loading}>
+          {loading ? 'Katılıyor...' : '🚪 Odaya Katıl'}
+        </button>
       </div>
     </div>
   );
