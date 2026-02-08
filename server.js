@@ -61,85 +61,64 @@ app.get('/api/rooms/:code', (req, res) => {
   }
 });
 
-// Yardımcı fonksiyon: Oda kullanıcılarını stats'tan oluştur
-function getUsersFromStats(roomCode) {
-  const stats = roomStats.get(roomCode) || {};
-  const hostName = roomHosts.get(roomCode);
-  
-  return Object.entries(stats).map(([username, userStat]) => ({
-    username: username,
-    isHost: hostName === username,
-    avatar: userStat.avatar || '👤',
-    studied: userStat.studied || 0,
-    known: userStat.known || 0
-  }));
-}
-
 // Socket.IO
 io.on('connection', (socket) => {
   console.log('✅ User connected:', socket.id);
   
   // ODA OLUŞTURMA - Host burada belirlenir!
-  socket.on('create-room', async ({ username, avatar }, callback) => {
-    try {
-      if (!username || username.trim().length < 2) {
-        callback?.({ success: false, error: 'Geçerli kullanıcı adı girin' });
-        return;
-      }
-
-      const roomId = uuidv4();
-      const roomCode = generateRoomCode();
-      const userAvatar = avatar || '👤';
-      
-      rooms.set(roomCode, {
-        id: roomId,
-        code: roomCode,
-        createdAt: new Date(),
-        isActive: true
-      });
-      
-      roomHosts.set(roomCode, username);
-      
-      // Stats'a host'u ekle
-      const initialStats = {
-        [username]: { 
-          studied: 0, 
-          known: 0, 
-          unknown: 0,
-          avatar: userAvatar
-        }
-      };
-      roomStats.set(roomCode, initialStats);
-      
-      // Socket'i odaya ekle
-      socket.join(roomCode);
-      
-      // Kullanıcıyı kaydet
-      roomUsers.set(socket.id, { 
-        roomCode, 
-        username, 
-        isHost: true,
-        joinedAt: new Date()
-      });
-      
-      console.log(`🏠 Room created: ${roomCode} by ${username}`);
-      
-      const users = getUsersFromStats(roomCode);
-      
-      // BAŞARILI - users listesi ve stats ile birlikte dön
-      callback({ 
-        success: true, 
-        roomCode,
-        avatar: userAvatar,
-        isHost: true,
-        users: users,
-        stats: initialStats
-      });
-    } catch (error) {
-      console.error('Error creating room:', error);
-      callback?.({ success: false, error: error.message });
+socket.on('create-room', async ({ username, avatar }, callback) => {
+  try {
+    if (!username || username.trim().length < 2) {
+      callback?.({ success: false, error: 'Geçerli kullanıcı adı girin' });
+      return;
     }
-  });
+
+    const roomId = uuidv4();
+    const roomCode = generateRoomCode();
+    const userAvatar = avatar || '👤';
+    
+    rooms.set(roomCode, {
+      id: roomId,
+      code: roomCode,
+      createdAt: new Date(),
+      isActive: true
+    });
+    
+    roomHosts.set(roomCode, username);
+    
+    // Stats'a host'u ekle
+    const initialStats = {
+      [username]: { 
+        studied: 0, 
+        known: 0, 
+        unknown: 0,
+        avatar: userAvatar
+      }
+    };
+    roomStats.set(roomCode, initialStats);
+    
+    console.log(`🏠 Room created: ${roomCode} by ${username}`);
+    
+    // BAŞARILI - users listesi ve stats ile birlikte dön
+callback({ 
+  success: true, 
+  roomCode,
+  avatar: userAvatar,
+  isHost: true,
+  users: [{  // ← BU EKLENDİ
+    username,
+    isHost: true,
+    avatar: userAvatar,
+    studied: 0,
+    known: 0
+  }],
+  stats: initialStats  // ← BU EKLENDİ
+});
+  } catch (error) {
+    console.error('Error creating room:', error);
+    callback?.({ success: false, error: error.message });
+  }
+});
   
   // ODAYA KATILMA
   socket.on('join-room', ({ roomCode, username, avatar }, callback) => {
@@ -203,7 +182,13 @@ io.on('connection', (socket) => {
       };
       
       // Odadaki tüm kullanıcıları topla (güncel stats ile)
-      const users = getUsersFromStats(roomCode);
+      const users = Object.entries(stats).map(([name, userStat]) => ({
+        username: name,
+        isHost: roomHosts.get(roomCode) === name,
+        avatar: userStat.avatar || '👤',
+        studied: userStat.studied || 0,
+        known: userStat.known || 0
+      }));
       
       console.log(`✅ ${username} joined ${roomCode}. Total users: ${users.length}`);
       
@@ -221,19 +206,20 @@ io.on('connection', (socket) => {
       
       // Diğer kullanıcılara bildir
       socket.to(roomCode).emit('user-joined', { 
-        username, 
-        socketId: socket.id,
-        isHost,
-        avatar: userAvatar,
-        studied: 0,
-        known: 0
-      });
+  username, 
+  socketId: socket.id,
+  isHost,
+  avatar: userAvatar,
+  studied: 0,
+  known: 0
+});
       
-      // Tüm odadakilere güncel stats gönder (users ile birlikte)
-      io.to(roomCode).emit('sync-stats', { 
-        stats,
-        users: users
-      });
+      // Tüm odadakilere güncel stats gönder
+       io.to(roomCode).emit('sync-stats', { 
+  stats,
+  users  // ← BUNU EKLE
+});
+
       
     } catch (error) {
       console.error('❌ Error joining room:', error);
@@ -254,14 +240,11 @@ io.on('connection', (socket) => {
           unknown: Math.max(0, parseInt(newStats.unknown) || 0)
         };
         
-        // Kullanıcı listesini oluştur
-        const users = getUsersFromStats(roomCode);
-        
         // Tüm odadakilere gönder
         io.to(roomCode).emit('sync-stats', { 
-          stats: roomStat,
-          users: users  // Tüm kullanıcı listesini de gönder
-        });
+  stats: roomStat,
+  users: users  // Tüm kullanıcı listesini de gönder
+});
         
         console.log(`📊 Stats updated: ${username} in ${roomCode}`, roomStat[username]);
       }
@@ -340,15 +323,9 @@ io.on('connection', (socket) => {
             }
           }
           
-          // Kullanıcı listesini oluştur
-          const users = getUsersFromStats(roomCode);
-          
           // Diğerlerine bildir
           io.to(roomCode).emit('user-left', { username, socketId: socket.id });
-          io.to(roomCode).emit('sync-stats', { 
-            stats,
-            users: users
-          });
+          io.to(roomCode).emit('sync-stats', { stats });
         }
       }
       
@@ -361,7 +338,7 @@ io.on('connection', (socket) => {
 });
 
 // Static files (production için)
-const clientPath = path.join(__dirname, 'client', 'dist');
+const clientPath = path.join(__dirname, 'ydt-kelime-pratigi', 'dist');
 app.use(express.static(clientPath));
 
 app.get('*', (req, res) => {
