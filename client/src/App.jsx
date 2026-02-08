@@ -2035,6 +2035,11 @@ const wordsData = [
 
 ];
 
+const [avatar, setAvatar] = useState('👤');
+const [selectedAvatar, setSelectedAvatar] = useState('👤');
+
+const avatars = ['👤', '🦊', '🐼', '🐨', '🦁', '🐯', '🐷', '🐸', '🐙', '🦄', '🐶', '🐱', '🐭', '🐹', '🐰', '🦝'];
+
 const sortedWords = [...wordsData].sort((a, b) => a.term.localeCompare(b.term));
 const shuffledWords = [...wordsData].sort(() => Math.random() - 0.5);
 
@@ -2261,31 +2266,31 @@ const createRoom = () => {
   setError('');
   setUsername(usernameValue);
   
-  console.log('Oda oluşturma isteği gönderiliyor...');
-  
-  // Önce create-room
-  socket.emit('create-room', { username: usernameValue }, (createResponse) => {
+  socket.emit('create-room', { 
+    username: usernameValue,
+    avatar: selectedAvatar 
+  }, (createResponse) => {
     if (!createResponse.success) {
       setError(createResponse.error || 'Oda oluşturulamadı');
       setLoading(false);
       return;
     }
     
-    console.log('Oda oluşturuldu:', createResponse.roomCode);
+    setAvatar(createResponse.avatar || selectedAvatar);
     
-    // Sonra join-room (callback ile)
     socket.emit('join-room', { 
       roomCode: createResponse.roomCode, 
       username: usernameValue,
-      isHost: true
+      isHost: true,
+      avatar: createResponse.avatar || selectedAvatar
     }, (joinResponse) => {
-      setLoading(false); // Loading'i kapat
+      setLoading(false);
       
       if (joinResponse.success) {
-        console.log('Odaya katılındı:', joinResponse);
         setRoomCode(joinResponse.roomCode);
         setUsers(joinResponse.users || []);
         setIsHost(joinResponse.isHost || false);
+        setAvatar(joinResponse.avatar || selectedAvatar);
         setIsInRoom(true);
         setError('');
         setCurrentView('room');
@@ -2296,7 +2301,7 @@ const createRoom = () => {
   });
 };
 
-  const joinRoom = () => {
+ const joinRoom = () => {
   const usernameInput = document.getElementById('username-input');
   const joinCodeInput = document.getElementById('joincode-input');
   const usernameValue = usernameInput ? usernameInput.value.trim() : '';
@@ -2316,20 +2321,19 @@ const createRoom = () => {
   setUsername(usernameValue);
   setJoinCode(codeValue);
   
-  console.log('Odaya katılıyor:', codeValue, 'Kullanıcı:', usernameValue);
-  
   socket.emit('join-room', { 
     roomCode: codeValue, 
     username: usernameValue,
-    isHost: false
+    isHost: false,
+    avatar: selectedAvatar
   }, (response) => {
-    setLoading(false); // Loading'i kapat
+    setLoading(false);
     
     if (response.success) {
-      console.log('Odaya katılındı:', response);
       setRoomCode(response.roomCode);
       setUsers(response.users || []);
       setIsHost(response.isHost || false);
+      setAvatar(response.avatar || selectedAvatar);
       setIsInRoom(true);
       setError('');
       setCurrentView('room');
@@ -2338,7 +2342,6 @@ const createRoom = () => {
     }
   });
 };
-
   const triggerCooldown = () => {
     setButtonCooldown(true);
     setTimeout(() => setButtonCooldown(false), 500);
@@ -2719,31 +2722,36 @@ const createRoom = () => {
     </div>
   );
 
-  const PracticeView = () => (
-    <div className="practice">
-      <h2>{isInRoom ? '👥 Yarış Modu' : 'Tek Kişilik Kelime Çalışması'}</h2>
-      <StatsPanel />
-      
-      {isInRoom && (
-        <div className="room-stats">
-          <h3>🏆 Canlı Skor ({users.length} oyuncu)</h3>
-          <div className="competitors">
-            {Object.entries(roomStats).length === 0 ? (
-              <p style={{color: 'rgba(255,255,255,0.5)'}}>Henüz skor yok...</p>
-            ) : (
-              Object.entries(roomStats)
-                .sort(([,a], [,b]) => (b.known || 0) - (a.known || 0))
-                .map(([name, userStats], index) => (
-                  <div key={name} className={`competitor ${name === username ? 'me' : ''}`}>
-                    <span className="rank">#{index + 1}</span>
-                    <span className="name">{name} {name === username ? '(Sen)' : ''}</span>
-                    <span className="score">✓ {userStats.known || 0}</span>
-                  </div>
-                ))
-            )}
-          </div>
+const PracticeView = () => (
+  <div className="practice">
+    <h2>{isInRoom ? `👥 ${avatar} ${username}` : 'Tek Kişilik Kelime Çalışması'}</h2>
+    <StatsPanel />
+    
+    {isInRoom && (
+      <div className="room-stats">
+        <h3>🏆 Canlı Skor ({users.length} oyuncu)</h3>
+        <div className="competitors">
+          {Object.entries(roomStats).length === 0 ? (
+            <p style={{color: 'rgba(255,255,255,0.5)'}}>Henüz skor yok...</p>
+          ) : (
+            Object.entries(roomStats)
+              .sort(([,a], [,b]) => (b.known || 0) - (a.known || 0))
+              .map(([name, userStats], index) => (
+                <div key={name} className={`competitor ${name === username ? 'me' : ''}`}>
+                  <span className="rank">#{index + 1}</span>
+                  <span className="avatar">{userStats.avatar || '👤'}</span>
+                  <span className="name">{name} {name === username ? '(Sen)' : ''}</span>
+                  <span className="score-detail">
+                    <span className="studied" title="Toplam">📚 {userStats.studied || 0}</span>
+                    <span className="correct" title="Doğru">✓ {userStats.known || 0}</span>
+                    <span className="wrong" title="Yanlış">✗ {(userStats.studied || 0) - (userStats.known || 0)}</span>
+                  </span>
+                </div>
+              ))
+          )}
         </div>
-      )}
+      </div>
+    )}
       
       <div className="progress">Kelime {currentWordIndex + 1} / {words.length}</div>
       <Flashcard word={words[currentWordIndex]} />
@@ -2981,70 +2989,103 @@ const createRoom = () => {
     </div>
   );
 
-  const RoomMenuView = () => (
-    <div className="room-menu">
-      <h2>Çok Oyunculu Oda Sistemi</h2>
-      <p className="description">Arkadaşlarınla birlikte kelime çalışması yap!</p>
-      {error && <div className="error">{error}</div>}
-      <div className="input-group">
-        <input 
-          id="username-input"
-          type="text"
-          placeholder="Kullanıcı adınız"
-          defaultValue={username}
-          style={{width: '100%', padding: '15px'}}
-        />
+const RoomMenuView = () => (
+  <div className="room-menu">
+    <h2>Çok Oyunculu Oda Sistemi</h2>
+    <p className="description">Arkadaşlarınla birlikte kelime çalışması yap!</p>
+    {error && <div className="error">{error}</div>}
+    
+    {/* Avatar Seçimi */}
+    <div className="avatar-selection">
+      <h4>Avatar Seç:</h4>
+      <div className="avatar-grid">
+        {avatars.map((emoji) => (
+          <button
+            key={emoji}
+            className={`avatar-btn ${selectedAvatar === emoji ? 'selected' : ''}`}
+            onClick={() => setSelectedAvatar(emoji)}
+          >
+            {emoji}
+          </button>
+        ))}
       </div>
-      <div className="actions">
-        <button onClick={createRoom} disabled={loading}>
-          {loading ? 'Oluşturuluyor...' : '🎮 Yeni Oda Oluştur'}
-        </button>
-        <div className="or">veya</div>
-        <input 
-          id="joincode-input"
-          type="text"
-          placeholder="Oda kodu (6 haneli)"
-          defaultValue={joinCode}
-          maxLength={6}
-          style={{width: '100%', padding: '15px'}}
-        />
-        <button onClick={joinRoom} disabled={loading}>
-          {loading ? 'Katılıyor...' : '🚪 Odaya Katıl'}
-        </button>
+    </div>
+    
+    <div className="input-group">
+      <input 
+        id="username-input"
+        type="text"
+        placeholder="Kullanıcı adınız"
+        defaultValue={username}
+        style={{width: '100%', padding: '15px'}}
+      />
+    </div>
+    <div className="actions">
+      <button onClick={createRoom} disabled={loading}>
+        {loading ? 'Oluşturuluyor...' : '🎮 Yeni Oda Oluştur'}
+      </button>
+      <div className="or">veya</div>
+      <input 
+        id="joincode-input"
+        type="text"
+        placeholder="Oda kodu (6 haneli)"
+        defaultValue={joinCode}
+        maxLength={6}
+        style={{width: '100%', padding: '15px'}}
+      />
+      <button onClick={joinRoom} disabled={loading}>
+        {loading ? 'Katılıyor...' : '🚪 Odaya Katıl'}
+      </button>
+    </div>
+  </div>
+);
+
+const RoomView = () => {
+  return (
+    <div className="room">
+      <div className="room-header">
+        <h3>Oda Kodu: <span className="code">{roomCode}</span></h3>
+        <p>Bu kodu arkadaşlarınla paylaş!</p>
+        <p style={{color: '#00d4ff', marginTop: '10px'}}>
+          👥 Odada {users.length} kişi var
+        </p>
+        {isHost && <span className="host-badge">👑 Host</span>}
+      </div>
+
+      {/* Lobide Skor Tablosu */}
+      <div className="lobby-stats">
+        <h4>🏆 Canlı Skor Tablosu</h4>
+        <div className="stats-table">
+          {users.length === 0 ? (
+            <p style={{color: 'rgba(255,255,255,0.5)'}}>Henüz kimse yok...</p>
+          ) : (
+            users.sort((a, b) => (b.known || 0) - (a.known || 0)).map((user, index) => (
+              <div key={index} className={`stat-row ${user.username === username ? 'me' : ''}`}>
+                <span className="rank">#{index + 1}</span>
+                <span className="avatar">{user.avatar || '👤'}</span>
+                <span className="name">{user.username} {user.username === username && '(Sen)'}</span>
+                <span className="score-detail">
+                  <span className="studied">📚 {user.studied || 0}</span>
+                  <span className="correct">✓ {user.known || 0}</span>
+                  <span className="wrong">✗ {(user.studied || 0) - (user.known || 0)}</span>
+                </span>
+                {user.isHost && <span className="host-icon">👑</span>}
+              </div>
+            ))
+          )}
+        </div>
+        <p className="stats-legend">
+          <small>📚 Toplam | ✓ Doğru | ✗ Yanlış</small>
+        </p>
+      </div>
+
+      <div className="room-actions">
+        <button onClick={() => setCurrentView('practice')}>▶️ Çalışmaya Başla</button>
+        <button className="btn-secondary" onClick={leaveRoom}>🚪 Odadan Çık</button>
       </div>
     </div>
   );
-
-  const RoomView = () => {
-    return (
-      <div className="room">
-        <div className="room-header">
-          <h3>Oda Kodu: <span className="code">{roomCode}</span></h3>
-          <p>Bu kodu arkadaşlarınla paylaş!</p>
-          <p style={{color: '#00d4ff', marginTop: '10px'}}>
-            👥 Odada {users.length} kişi var
-          </p>
-          {isHost && <span className="host-badge">👑 Host</span>}
-        </div>
-
-        <div className="users">
-          <h4>Kullanıcılar:</h4>
-          <ul>
-            {users.map((user, idx) => (
-              <li key={idx} className={user.username === username ? 'me' : ''}>
-                {user.username} {user.username === username && '(Sen)'} {user.isHost && '👑'}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="room-actions">
-          <button onClick={() => setCurrentView('practice')}>▶️ Çalışmaya Başla</button>
-          <button className="btn-secondary" onClick={leaveRoom}>🚪 Odadan Çık</button>
-        </div>
-      </div>
-    );
-  };
+};
 
   return (
     <div className="app">

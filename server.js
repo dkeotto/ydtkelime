@@ -24,7 +24,7 @@ app.use(express.json());
 
 const rooms = new Map();
 const roomUsers = new Map();
-const roomStats = {};
+const roomStats = {}; // roomCode -> {username: {studied, known, unknown, avatar}}
 
 function generateRoomCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -63,103 +63,122 @@ app.get('/api/rooms/:code', (req, res) => {
 io.on('connection', (socket) => {
   console.log('✅ User connected:', socket.id);
   
-  socket.on('create-room', ({ username }, callback) => {
-  const roomId = uuidv4();
-  const roomCode = generateRoomCode();
-  
-  rooms.set(roomCode, {
-    id: roomId,
-    code: roomCode,
-    createdAt: new Date(),
-    isActive: true
-  });
-  
-  console.log(`🏠 Room created: ${roomCode} by ${username}`);
-  
-  if (callback) {
-    callback({ success: true, roomCode });
-  }
-});
-  socket.on('create-room', ({ username }, callback) => {
-  const roomId = uuidv4();
-  const roomCode = generateRoomCode();
-  
-  rooms.set(roomCode, {
-    id: roomId,
-    code: roomCode,
-    createdAt: new Date(),
-    isActive: true
-  });
-  
-  console.log(`🏠 Room created: ${roomCode} by ${username}`);
-  
-  if (callback) {
-    callback({ success: true, roomCode });
-  }
-});
- socket.on('join-room', ({ roomCode, username, isHost }, callback) => {
-  try {
-    console.log(`🚪 Join attempt: ${username} -> ${roomCode}`);
-    
-    const room = rooms.get(roomCode);
-    
-    if (!room || !room.isActive) {
-      console.log(`❌ Room not found: ${roomCode}`);
-      if (callback) callback({ success: false, error: 'Oda bulunamadı veya kapalı' });
-      return;
+  socket.on('create-room', ({ username, avatar }, callback) => {
+    try {
+      const roomId = uuidv4();
+      const roomCode = generateRoomCode();
+      
+      rooms.set(roomCode, {
+        id: roomId,
+        code: roomCode,
+        createdAt: new Date(),
+        isActive: true
+      });
+      
+      console.log(`🏠 Room created: ${roomCode} by ${username}`);
+      
+      if (callback) {
+        callback({ 
+          success: true, 
+          roomCode,
+          avatar: avatar || '👤'
+        });
+      }
+    } catch (error) {
+      console.error('Error creating room:', error);
+      if (callback) callback({ success: false, error: error.message });
     }
-    
-    // Aynı kullanıcı adı kontrolü
-    for (const [socketId, user] of roomUsers) {
-      if (user.roomCode === roomCode && user.username === username) {
-        console.log(`❌ Username taken: ${username}`);
-        if (callback) callback({ success: false, error: 'Bu kullanıcı adı odada kullanılıyor' });
+  });
+  
+  socket.on('join-room', ({ roomCode, username, isHost, avatar }, callback) => {
+    try {
+      console.log(`🚪 Join attempt: ${username} -> ${roomCode}`);
+      
+      const room = rooms.get(roomCode);
+      
+      if (!room || !room.isActive) {
+        console.log(`❌ Room not found: ${roomCode}`);
+        if (callback) callback({ success: false, error: 'Oda bulunamadı veya kapalı' });
         return;
       }
-    }
-    
-    socket.join(roomCode);
-    roomUsers.set(socket.id, { roomCode, username, isHost });
-    
-    if (!roomStats[roomCode]) {
-      roomStats[roomCode] = {};
-    }
-    roomStats[roomCode][username] = { known: 0, unknown: 0, studied: 0 };
-    
-    // Odadaki tüm kullanıcıları topla
-    const users = [];
-    for (const [socketId, user] of roomUsers) {
-      if (user.roomCode === roomCode) {
-        users.push({ username: user.username, isHost: user.isHost });
+      
+      // Aynı kullanıcı adı kontrolü
+      for (const [socketId, user] of roomUsers) {
+        if (user.roomCode === roomCode && user.username === username) {
+          console.log(`❌ Username taken: ${username}`);
+          if (callback) callback({ success: false, error: 'Bu kullanıcı adı odada kullanılıyor' });
+          return;
+        }
       }
-    }
-    
-    console.log(`✅ ${username} joined ${roomCode}. Users:`, users);
-    
-    // CALLBACK ile yanıt ver (event yerine)
-    if (callback) {
-      callback({ 
-        success: true,
-        roomCode, 
-        users,
-        isHost,
-        stats: roomStats[roomCode]
+      
+      socket.join(roomCode);
+      roomUsers.set(socket.id, { roomCode, username, isHost });
+      
+      if (!roomStats[roomCode]) {
+        roomStats[roomCode] = {};
+      }
+      
+      // Avatar ata (yoksa default)
+      const userAvatar = avatar || '👤';
+      
+      roomStats[roomCode][username] = { 
+        studied: 0, 
+        known: 0, 
+        unknown: 0,
+        avatar: userAvatar
+      };
+      
+      // Odadaki tüm kullanıcıları topla
+      const users = [];
+      for (const [socketId, user] of roomUsers) {
+        if (user.roomCode === roomCode) {
+          const userStat = roomStats[roomCode][user.username] || {};
+          users.push({ 
+            username: user.username, 
+            isHost: user.isHost,
+            avatar: userStat.avatar || '👤',
+            studied: userStat.studied || 0,
+            known: userStat.known || 0
+          });
+        }
+      }
+      
+      console.log(`✅ ${username} joined ${roomCode}. Users:`, users);
+      
+      // CALLBACK ile yanıt ver
+      if (callback) {
+        callback({ 
+          success: true,
+          roomCode, 
+          users,
+          isHost,
+          stats: roomStats[roomCode],
+          avatar: userAvatar
+        });
+      }
+      
+      // Diğer kullanıcılara bildir (avatar ve studied ile)
+      socket.to(roomCode).emit('user-joined', { 
+        username, 
+        socketId: socket.id,
+        avatar: userAvatar,
+        studied: 0,
+        known: 0
       });
+      socket.to(roomCode).emit('sync-stats', { stats: roomStats[roomCode] });
+      
+    } catch (error) {
+      console.error('❌ Error joining room:', error);
+      if (callback) callback({ success: false, error: error.message });
     }
-    
-    // Diğer kullanıcılara bildir (event olarak)
-    socket.to(roomCode).emit('user-joined', { username, socketId: socket.id });
-    socket.to(roomCode).emit('sync-stats', { stats: roomStats[roomCode] });
-    
-  } catch (error) {
-    console.error('❌ Error joining room:', error);
-    if (callback) callback({ success: false, error: error.message });
-  }
-});
+  });
 
   socket.on('update-stats', ({ roomCode, username, stats }) => {
-    if (roomStats[roomCode]) {
-      roomStats[roomCode][username] = stats;
+    if (roomStats[roomCode] && roomStats[roomCode][username]) {
+      roomStats[roomCode][username] = {
+        ...roomStats[roomCode][username],
+        ...stats
+      };
       io.to(roomCode).emit('sync-stats', { stats: roomStats[roomCode] });
     }
   });

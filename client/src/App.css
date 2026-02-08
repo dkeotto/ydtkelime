@@ -1,3 +1,132 @@
+/* Avatar Seçimi */
+.avatar-selection {
+  margin: 20px 0;
+  padding: 15px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 10px;
+}
+
+.avatar-selection h4 {
+  margin-bottom: 10px;
+  color: #00d4ff;
+}
+
+.avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 10px;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.avatar-btn {
+  font-size: 2rem;
+  padding: 10px;
+  background: rgba(255,255,255,0.1);
+  border: 2px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.avatar-btn:hover {
+  background: rgba(255,255,255,0.2);
+  transform: scale(1.1);
+}
+
+.avatar-btn.selected {
+  border-color: #00d4ff;
+  background: rgba(0,212,255,0.2);
+  box-shadow: 0 0 15px rgba(0,212,255,0.5);
+}
+
+/* Lobide Skor Tablosu */
+.lobby-stats {
+  margin: 20px 0;
+  padding: 20px;
+  background: rgba(0,0,0,0.3);
+  border-radius: 15px;
+  border: 1px solid rgba(0,212,255,0.3);
+}
+
+.lobby-stats h4 {
+  color: #00d4ff;
+  margin-bottom: 15px;
+  text-align: center;
+}
+
+.stats-table {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stat-row {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 12px 15px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 10px;
+  transition: all 0.3s;
+}
+
+.stat-row:hover {
+  background: rgba(255,255,255,0.1);
+}
+
+.stat-row.me {
+  background: rgba(0,212,255,0.2);
+  border: 1px solid rgba(0,212,255,0.5);
+}
+
+.stat-row .rank {
+  font-weight: bold;
+  color: #ffd700;
+  min-width: 30px;
+}
+
+.stat-row .avatar {
+  font-size: 1.5rem;
+}
+
+.stat-row .name {
+  flex: 1;
+  font-weight: 500;
+}
+
+.stat-row .score-detail {
+  display: flex;
+  gap: 15px;
+  font-size: 0.9rem;
+}
+
+.stat-row .studied { color: #aaa; }
+.stat-row .correct { color: #4caf50; }
+.stat-row .wrong { color: #f44336; }
+
+.stat-row .host-icon {
+  color: #ffd700;
+  font-size: 1.2rem;
+}
+
+.stats-legend {
+  text-align: center;
+  margin-top: 10px;
+  color: rgba(255,255,255,0.5);
+}
+
+/* PracticeView'deki skor detayı */
+.competitor .score-detail {
+  display: flex;
+  gap: 10px;
+  font-size: 0.85rem;
+}
+
+.competitor .studied { color: #aaa; }
+.competitor .correct { color: #4caf50; font-weight: bold; }
+.competitor .wrong { color: #f44336; }
+
 * {
   margin: 0;
   padding: 0;
