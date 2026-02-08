@@ -2168,6 +2168,7 @@ function App() {
     });
 
     socket.on('room-joined', ({ roomCode, users, isHost: hostStatus }) => {
+      console.log('Odaya katılındı:', roomCode, 'Kullanıcılar:', users);
       setRoomCode(roomCode);
       setUsers(users || []);
       setIsHost(hostStatus || false);
@@ -2177,17 +2178,20 @@ function App() {
       setCurrentView('room');
     });
 
-    socket.on('user-joined', ({ username, socketId }) => {
+    socket.on('user-joined', ({ username, socketId, isHost }) => {
+      console.log('Kullanıcı katıldı:', username, socketId);
       setUsers(prev => {
+        // Aynı kullanıcı varsa ekleme
         if (!prev.find(u => u.username === username)) {
-          return [...prev, { username, socketId }];
+          return [...prev, { username, socketId, isHost: isHost || false }];
         }
         return prev;
       });
     });
 
-    socket.on('user-left', ({ username }) => {
-      setUsers(prev => prev.filter(u => u.username !== username));
+    socket.on('user-left', ({ username, socketId }) => {
+      console.log('Kullanıcı ayrıldı:', username);
+      setUsers(prev => prev.filter(u => u.socketId !== socketId));
     });
 
     socket.on('sync-stats', ({ stats: newStats }) => {
@@ -2250,25 +2254,16 @@ function App() {
     setError('');
     setUsername(usernameValue);
     
-    try {
-      const newRoomCode = Math.floor(100000 + Math.random() * 900000).toString();
-      setRoomCode(newRoomCode);
-      
-      socket.emit('join-room', { 
-        roomCode: newRoomCode, 
-        username: usernameValue,
-        isHost: true
-      });
-      
-      setIsInRoom(true);
-      setIsHost(true);
-      setCurrentView('room');
-      
-    } catch (err) {
-      setError(`Hata: ${err.message}`);
-    } finally {
-      setLoading(false);
-    }
+    const newRoomCode = Math.floor(100000 + Math.random() * 900000).toString();
+    setRoomCode(newRoomCode);
+    
+    socket.emit('join-room', { 
+      roomCode: newRoomCode, 
+      username: usernameValue,
+      isHost: true
+    });
+    
+    // State güncellemeleri room-joined event'inde yapılacak
   };
 
   const joinRoom = () => {
@@ -2297,11 +2292,7 @@ function App() {
       isHost: false
     });
     
-    setTimeout(() => {
-      setIsInRoom(true);
-      setCurrentView('room');
-      setLoading(false);
-    }, 500);
+    // State güncellemeleri room-joined event'inde yapılacak
   };
 
   const triggerCooldown = () => {
@@ -2974,16 +2965,12 @@ function App() {
           maxLength={6}
           style={{width: '100%', padding: '15px'}}
         />
-        <button onClick={joinRoom}>🚪 Odaya Katıl</button>
+        <button onClick={joinRoom} disabled={loading}>{loading ? 'Katılıyor...' : '🚪 Odaya Katıl'}</button>
       </div>
     </div>
   );
 
   const RoomView = () => {
-    useEffect(() => {
-      setError('');
-    }, []);
-
     return (
       <div className="room">
         <div className="room-header">
