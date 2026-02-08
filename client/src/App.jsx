@@ -2035,90 +2035,42 @@ const wordsData = [
 
 ];
 
-const [avatar, setAvatar] = useState('👤');
-const [selectedAvatar, setSelectedAvatar] = useState('👤');
-
-const avatars = ['👤', '🦊', '🐼', '🐨', '🦁', '🐯', '🐷', '🐸', '🐙', '🦄', '🐶', '🐱', '🐭', '🐹', '🐰', '🦝'];
-
-const sortedWords = [...wordsData].sort((a, b) => a.term.localeCompare(b.term));
-const shuffledWords = [...wordsData].sort(() => Math.random() - 0.5);
-
-const playSound = (type) => {
-  try {
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    if (type === 'correct') {
-      oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime);
-      oscillator.frequency.setValueAtTime(659.25, audioContext.currentTime + 0.1);
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.3);
-    } else {
-      oscillator.frequency.setValueAtTime(200, audioContext.currentTime);
-      oscillator.frequency.setValueAtTime(150, audioContext.currentTime + 0.2);
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.4);
-    }
-  } catch (e) {
-    console.log('Ses çalınamadı:', e);
-  }
-};
-
-const generateOptions = (correctWord, allWords) => {
-  const options = [correctWord];
-  const otherWords = allWords.filter(w => w.term !== correctWord.term);
-  const usedIndices = new Set();
-  
-  while (options.length < 4 && usedIndices.size < otherWords.length) {
-    const randomIndex = Math.floor(Math.random() * otherWords.length);
-    if (!usedIndices.has(randomIndex)) {
-      usedIndices.add(randomIndex);
-      const wrongWord = otherWords[randomIndex];
-      if (!options.find(o => o.term === wrongWord.term)) {
-        options.push(wrongWord);
-      }
-    }
-  }
-  
-  while (options.length < 4) {
-    options.push(correctWord);
-  }
-  
-  return options.sort(() => Math.random() - 0.5);
-};
-
 function App() {
-  const loadFromStorage = (key, defaultValue) => {
-    try {
-      const saved = localStorage.getItem(`ydt_${key}`);
-      return saved ? JSON.parse(saved) : defaultValue;
-    } catch {
-      return defaultValue;
-    }
-  };
+  // AVATARLAR
+  const avatars = ['👤', '🦊', '🐼', '🐨', '🦁', '🐯', '🐷', '🐸', '🐙', '🦄', '🐶', '🐱', '🐭', '🐹', '🐰', '🦝'];
 
-  const [currentView, setCurrentView] = useState('practice');
+  // KELİME LİSTELERİ
+  const sortedWords = [...wordsData].sort((a, b) => a.term.localeCompare(b.term));
+  const shuffledWords = [...wordsData].sort(() => Math.random() - 0.5);
   const [words] = useState(shuffledWords);
   const [sortedWordsList] = useState(sortedWords);
+
+  // STATE'LER
+  const [currentView, setCurrentView] = useState('practice');
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const [showExample, setShowExample] = useState(false);
-  const [stats, setStats] = useState(() => loadFromStorage('stats', { studied: 0, known: 0, unknown: 0 }));
-  const [wrongWords, setWrongWords] = useState(() => loadFromStorage('wrongWords', []));
+  const [stats, setStats] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ydt_stats');
+      return saved ? JSON.parse(saved) : { studied: 0, known: 0, unknown: 0 };
+    } catch {
+      return { studied: 0, known: 0, unknown: 0 };
+    }
+  });
+  const [wrongWords, setWrongWords] = useState(() => {
+    try {
+      const saved = localStorage.getItem('ydt_wrongWords');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [buttonCooldown, setButtonCooldown] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchTerm, setSearchTerm] = useState('');
   const [avatar, setAvatar] = useState('👤');
   const [selectedAvatar, setSelectedAvatar] = useState('👤');
-  const avatars = ['👤', '🦊', '🐼', '🐨', '🦁', '🐯', '🐷', '🐸', '🐙', '🦄', '🐶', '🐱', '🐭', '🐹', '🐰', '🦝'];
   
   const feedbackCounter = useRef(0);
   const [feedback, setFeedback] = useState(null);
@@ -2155,6 +2107,61 @@ function App() {
   const [gameTimer, setGameTimer] = useState(null);
   const [gameFinished, setGameFinished] = useState(false);
 
+  // SES FONKSİYONU
+  const playSound = (type) => {
+    try {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      if (type === 'correct') {
+        oscillator.frequency.setValueAtTime(523.25, audioContext.currentTime);
+        oscillator.frequency.setValueAtTime(659.25, audioContext.currentTime + 0.1);
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.3);
+      } else {
+        oscillator.frequency.setValueAtTime(200, audioContext.currentTime);
+        oscillator.frequency.setValueAtTime(150, audioContext.currentTime + 0.2);
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.4);
+      }
+    } catch (e) {
+      console.log('Ses çalınamadı:', e);
+    }
+  };
+
+  // SEÇENEK ÜRETME
+  const generateOptions = (correctWord, allWords) => {
+    const options = [correctWord];
+    const otherWords = allWords.filter(w => w.term !== correctWord.term);
+    const usedIndices = new Set();
+    
+    while (options.length < 4 && usedIndices.size < otherWords.length) {
+      const randomIndex = Math.floor(Math.random() * otherWords.length);
+      if (!usedIndices.has(randomIndex)) {
+        usedIndices.add(randomIndex);
+        const wrongWord = otherWords[randomIndex];
+        if (!options.find(o => o.term === wrongWord.term)) {
+          options.push(wrongWord);
+        }
+      }
+    }
+    
+    while (options.length < 4) {
+      options.push(correctWord);
+    }
+    
+    return options.sort(() => Math.random() - 0.5);
+  };
+
+  // LOCALSTORAGE EFFECT'LERİ
   useEffect(() => {
     localStorage.setItem('ydt_stats', JSON.stringify(stats));
   }, [stats]);
@@ -2163,6 +2170,7 @@ function App() {
     localStorage.setItem('ydt_wrongWords', JSON.stringify(wrongWords));
   }, [wrongWords]);
 
+  // SOCKET.IO EFFECT'LERİ
   useEffect(() => {
     socket.on('connect_error', (err) => {
       console.error('Socket bağlantı hatası:', err);
@@ -2216,7 +2224,6 @@ function App() {
       setLoading(false);
     });
 
-    // Timeout - 10 saniye sonra loading'i kapat
     const timeout = setTimeout(() => {
       if (loading) {
         console.log('Timeout: loading kapatılıyor');
@@ -2238,6 +2245,7 @@ function App() {
     };
   }, [loading]);
 
+  // OYUN TIMER'I
   useEffect(() => {
     if (matchingGame && !gameFinished && matchedPairs.length < 8) {
       const timer = setInterval(() => {
@@ -2248,6 +2256,7 @@ function App() {
     }
   }, [matchingGame, gameFinished, matchedPairs.length]);
 
+  // FİLTRELENMİŞ KELİMELER
   const filteredWords = useMemo(() => {
     if (!searchTerm) return sortedWordsList;
     return sortedWordsList.filter(w => 
@@ -2256,95 +2265,97 @@ function App() {
     );
   }, [sortedWordsList, searchTerm]);
 
-const createRoom = () => {
-  const usernameInput = document.getElementById('username-input');
-  const usernameValue = usernameInput ? usernameInput.value.trim() : '';
-  
-  if (!usernameValue) {
-    setError('Lütfen kullanıcı adı girin');
-    return;
-  }
-  
-  setLoading(true);
-  setError('');
-  setUsername(usernameValue);
-  
-  socket.emit('create-room', { 
-    username: usernameValue,
-    avatar: selectedAvatar 
-  }, (createResponse) => {
-    if (!createResponse.success) {
-      setError(createResponse.error || 'Oda oluşturulamadı');
-      setLoading(false);
+  // ODA FONKSİYONLARI
+  const createRoom = () => {
+    const usernameInput = document.getElementById('username-input');
+    const usernameValue = usernameInput ? usernameInput.value.trim() : '';
+    
+    if (!usernameValue) {
+      setError('Lütfen kullanıcı adı girin');
       return;
     }
     
-    setAvatar(createResponse.avatar || selectedAvatar);
+    setLoading(true);
+    setError('');
+    setUsername(usernameValue);
+    
+    socket.emit('create-room', { 
+      username: usernameValue,
+      avatar: selectedAvatar 
+    }, (createResponse) => {
+      if (!createResponse.success) {
+        setError(createResponse.error || 'Oda oluşturulamadı');
+        setLoading(false);
+        return;
+      }
+      
+      setAvatar(createResponse.avatar || selectedAvatar);
+      
+      socket.emit('join-room', { 
+        roomCode: createResponse.roomCode, 
+        username: usernameValue,
+        isHost: true,
+        avatar: createResponse.avatar || selectedAvatar
+      }, (joinResponse) => {
+        setLoading(false);
+        
+        if (joinResponse.success) {
+          setRoomCode(joinResponse.roomCode);
+          setUsers(joinResponse.users || []);
+          setIsHost(joinResponse.isHost || false);
+          setAvatar(joinResponse.avatar || selectedAvatar);
+          setIsInRoom(true);
+          setError('');
+          setCurrentView('room');
+        } else {
+          setError(joinResponse.error || 'Odaya katılım başarısız');
+        }
+      });
+    });
+  };
+
+  const joinRoom = () => {
+    const usernameInput = document.getElementById('username-input');
+    const joinCodeInput = document.getElementById('joincode-input');
+    const usernameValue = usernameInput ? usernameInput.value.trim() : '';
+    const codeValue = joinCodeInput ? joinCodeInput.value.trim() : '';
+    
+    if (!usernameValue) {
+      setError('Lütfen kullanıcı adı girin');
+      return;
+    }
+    if (!codeValue || codeValue.length !== 6) {
+      setError('Lütfen geçerli 6 haneli oda kodu girin');
+      return;
+    }
+    
+    setLoading(true);
+    setError('');
+    setUsername(usernameValue);
+    setJoinCode(codeValue);
     
     socket.emit('join-room', { 
-      roomCode: createResponse.roomCode, 
+      roomCode: codeValue, 
       username: usernameValue,
-      isHost: true,
-      avatar: createResponse.avatar || selectedAvatar
-    }, (joinResponse) => {
+      isHost: false,
+      avatar: selectedAvatar
+    }, (response) => {
       setLoading(false);
       
-      if (joinResponse.success) {
-        setRoomCode(joinResponse.roomCode);
-        setUsers(joinResponse.users || []);
-        setIsHost(joinResponse.isHost || false);
-        setAvatar(joinResponse.avatar || selectedAvatar);
+      if (response.success) {
+        setRoomCode(response.roomCode);
+        setUsers(response.users || []);
+        setIsHost(response.isHost || false);
+        setAvatar(response.avatar || selectedAvatar);
         setIsInRoom(true);
         setError('');
         setCurrentView('room');
       } else {
-        setError(joinResponse.error || 'Odaya katılım başarısız');
+        setError(response.error || 'Odaya katılım başarısız');
       }
     });
-  });
-};
+  };
 
- const joinRoom = () => {
-  const usernameInput = document.getElementById('username-input');
-  const joinCodeInput = document.getElementById('joincode-input');
-  const usernameValue = usernameInput ? usernameInput.value.trim() : '';
-  const codeValue = joinCodeInput ? joinCodeInput.value.trim() : '';
-  
-  if (!usernameValue) {
-    setError('Lütfen kullanıcı adı girin');
-    return;
-  }
-  if (!codeValue || codeValue.length !== 6) {
-    setError('Lütfen geçerli 6 haneli oda kodu girin');
-    return;
-  }
-  
-  setLoading(true);
-  setError('');
-  setUsername(usernameValue);
-  setJoinCode(codeValue);
-  
-  socket.emit('join-room', { 
-    roomCode: codeValue, 
-    username: usernameValue,
-    isHost: false,
-    avatar: selectedAvatar
-  }, (response) => {
-    setLoading(false);
-    
-    if (response.success) {
-      setRoomCode(response.roomCode);
-      setUsers(response.users || []);
-      setIsHost(response.isHost || false);
-      setAvatar(response.avatar || selectedAvatar);
-      setIsInRoom(true);
-      setError('');
-      setCurrentView('room');
-    } else {
-      setError(response.error || 'Odaya katılım başarısız');
-    }
-  });
-};
   const triggerCooldown = () => {
     setButtonCooldown(true);
     setTimeout(() => setButtonCooldown(false), 500);
@@ -2377,6 +2388,7 @@ const createRoom = () => {
     }, 1200);
   };
 
+  // EŞLEŞTİRME OYUNU
   const startMatchingGame = () => {
     const selectedWords = [...words].sort(() => Math.random() - 0.5).slice(0, 8);
     const cards = [];
@@ -2450,6 +2462,7 @@ const createRoom = () => {
     return baseScore + timeBonus + moveBonus;
   };
 
+  // TEST FONKSİYONLARI
   const startTest = (wordsList = null) => {
     const testCountInput = document.getElementById('test-count-input');
     const countValue = testCountInput ? parseInt(testCountInput.value) : 10;
@@ -2534,6 +2547,7 @@ const createRoom = () => {
     }, 1500);
   };
 
+  // KELİME NAVİGASYONU
   const nextWord = () => {
     if (currentWordIndex < words.length - 1) {
       const newIndex = currentWordIndex + 1;
@@ -2629,6 +2643,7 @@ const createRoom = () => {
     }
   };
 
+  // NAVİGASYON
   const Navigation = () => (
     <nav className="nav">
       <button className={currentView === 'practice' && !testMode ? 'active' : ''} onClick={() => {setCurrentView('practice'); setTestMode(false); setMatchingGame(false);}}>
@@ -2652,6 +2667,7 @@ const createRoom = () => {
     </nav>
   );
 
+  // FLASHCARD KOMPONENTİ
   const Flashcard = ({ word }) => (
     <div className="flashcard-container">
       <div className={`flashcard ${isFlipped ? 'flipped' : ''}`} onClick={flipCard}>
@@ -2707,6 +2723,7 @@ const createRoom = () => {
     </div>
   );
 
+  // İSTATİSTİK PANELİ
   const StatsPanel = () => (
     <div className="stats">
       <div className="stat">
@@ -2725,37 +2742,38 @@ const createRoom = () => {
     </div>
   );
 
-const PracticeView = () => (
-  <div className="practice">
-    <h2>{isInRoom ? `👥 ${avatar} ${username}` : 'Tek Kişilik Kelime Çalışması'}</h2>
-    <StatsPanel />
-    
-    {isInRoom && (
-      <div className="room-stats">
-        <h3>🏆 Canlı Skor ({users.length} oyuncu)</h3>
-        <div className="competitors">
-          {Object.entries(roomStats).length === 0 ? (
-            <p style={{color: 'rgba(255,255,255,0.5)'}}>Henüz skor yok...</p>
-          ) : (
-            Object.entries(roomStats)
-              .sort(([,a], [,b]) => (b.known || 0) - (a.known || 0))
-              .map(([name, userStats], index) => (
-                <div key={name} className={`competitor ${name === username ? 'me' : ''}`}>
-                  <span className="rank">#{index + 1}</span>
-                  <span className="avatar">{userStats.avatar || '👤'}</span>
-                  <span className="name">{name} {name === username ? '(Sen)' : ''}</span>
-                  <span className="score-detail">
-                    <span className="studied" title="Toplam">📚 {userStats.studied || 0}</span>
-                    <span className="correct" title="Doğru">✓ {userStats.known || 0}</span>
-                    <span className="wrong" title="Yanlış">✗ {(userStats.studied || 0) - (userStats.known || 0)}</span>
-                  </span>
-                </div>
-              ))
-          )}
-        </div>
-      </div>
-    )}
+  // VİEW KOMPONENTLERİ
+  const PracticeView = () => (
+    <div className="practice">
+      <h2>{isInRoom ? `👥 ${avatar} ${username}` : 'Tek Kişilik Kelime Çalışması'}</h2>
+      <StatsPanel />
       
+      {isInRoom && (
+        <div className="room-stats">
+          <h3>🏆 Canlı Skor ({users.length} oyuncu)</h3>
+          <div className="competitors">
+            {Object.entries(roomStats).length === 0 ? (
+              <p style={{color: 'rgba(255,255,255,0.5)'}}>Henüz skor yok...</p>
+            ) : (
+              Object.entries(roomStats)
+                .sort(([,a], [,b]) => (b.known || 0) - (a.known || 0))
+                .map(([name, userStats], index) => (
+                  <div key={name} className={`competitor ${name === username ? 'me' : ''}`}>
+                    <span className="rank">#{index + 1}</span>
+                    <span className="avatar">{userStats.avatar || '👤'}</span>
+                    <span className="name">{name} {name === username ? '(Sen)' : ''}</span>
+                    <span className="score-detail">
+                      <span className="studied" title="Toplam">📚 {userStats.studied || 0}</span>
+                      <span className="correct" title="Doğru">✓ {userStats.known || 0}</span>
+                      <span className="wrong" title="Yanlış">✗ {(userStats.studied || 0) - (userStats.known || 0)}</span>
+                    </span>
+                  </div>
+                ))
+            )}
+          </div>
+        </div>
+      )}
+        
       <div className="progress">Kelime {currentWordIndex + 1} / {words.length}</div>
       <Flashcard word={words[currentWordIndex]} />
       <div className="controls">
@@ -2992,109 +3010,107 @@ const PracticeView = () => (
     </div>
   );
 
-const RoomMenuView = () => (
-  <div className="room-menu">
-    <h2>Çok Oyunculu Oda Sistemi</h2>
-    <p className="description">Arkadaşlarınla birlikte kelime çalışması yap!</p>
-    {error && <div className="error">{error}</div>}
-    
-    {/* Avatar Seçimi */}
-    <div className="avatar-selection">
-      <h4>Avatar Seç:</h4>
-      <div className="avatar-grid">
-        {avatars.map((emoji) => (
-          <button
-            key={emoji}
-            className={`avatar-btn ${selectedAvatar === emoji ? 'selected' : ''}`}
-            onClick={() => setSelectedAvatar(emoji)}
-          >
-            {emoji}
-          </button>
-        ))}
-      </div>
-    </div>
-    
-    <div className="input-group">
-      <input 
-        id="username-input"
-        type="text"
-        placeholder="Kullanıcı adınız"
-        defaultValue={username}
-        style={{width: '100%', padding: '15px'}}
-      />
-    </div>
-    <div className="actions">
-      <button onClick={createRoom} disabled={loading}>
-        {loading ? 'Oluşturuluyor...' : '🎮 Yeni Oda Oluştur'}
-      </button>
-      <div className="or">veya</div>
-      <input 
-        id="joincode-input"
-        type="text"
-        placeholder="Oda kodu (6 haneli)"
-        defaultValue={joinCode}
-        maxLength={6}
-        style={{width: '100%', padding: '15px'}}
-      />
-      <button onClick={joinRoom} disabled={loading}>
-        {loading ? 'Katılıyor...' : '🚪 Odaya Katıl'}
-      </button>
-    </div>
-  </div>
-);
-
-const RoomView = () => {
-  return (
-    <div className="room">
-      <div className="room-header">
-        <h3>Oda Kodu: <span className="code">{roomCode}</span></h3>
-        <p>Bu kodu arkadaşlarınla paylaş!</p>
-        <p style={{color: '#00d4ff', marginTop: '10px'}}>
-          👥 Odada {users.length} kişi var
-        </p>
-        {isHost && <span className="host-badge">👑 Host</span>}
-      </div>
-
-      {/* Lobide Skor Tablosu */}
-      <div className="lobby-stats">
-        <h4>🏆 Canlı Skor Tablosu</h4>
-        <div className="stats-table">
-          {users.length === 0 ? (
-            <p style={{color: 'rgba(255,255,255,0.5)'}}>Henüz kimse yok...</p>
-          ) : (
-            users.sort((a, b) => (b.known || 0) - (a.known || 0)).map((user, index) => (
-              <div key={index} className={`stat-row ${user.username === username ? 'me' : ''}`}>
-                <span className="rank">#{index + 1}</span>
-                <span className="avatar">{user.avatar || '👤'}</span>
-                <span className="name">{user.username} {user.username === username && '(Sen)'}</span>
-                <span className="score-detail">
-                  <span className="studied">📚 {user.studied || 0}</span>
-                  <span className="correct">✓ {user.known || 0}</span>
-                  <span className="wrong">✗ {(user.studied || 0) - (user.known || 0)}</span>
-                </span>
-                {user.isHost && <span className="host-icon">👑</span>}
-              </div>
-            ))
-          )}
+  const RoomMenuView = () => (
+    <div className="room-menu">
+      <h2>Çok Oyunculu Oda Sistemi</h2>
+      <p className="description">Arkadaşlarınla birlikte kelime çalışması yap!</p>
+      {error && <div className="error">{error}</div>}
+      
+      <div className="avatar-selection">
+        <h4>Avatar Seç:</h4>
+        <div className="avatar-grid">
+          {avatars.map((emoji) => (
+            <button
+              key={emoji}
+              className={`avatar-btn ${selectedAvatar === emoji ? 'selected' : ''}`}
+              onClick={() => setSelectedAvatar(emoji)}
+            >
+              {emoji}
+            </button>
+          ))}
         </div>
-        <p className="stats-legend">
-          <small>📚 Toplam | ✓ Doğru | ✗ Yanlış</small>
-        </p>
       </div>
-
-      <div className="room-actions">
-        <button onClick={() => setCurrentView('practice')}>▶️ Çalışmaya Başla</button>
-        <button className="btn-secondary" onClick={leaveRoom}>🚪 Odadan Çık</button>
+      
+      <div className="input-group">
+        <input 
+          id="username-input"
+          type="text"
+          placeholder="Kullanıcı adınız"
+          defaultValue={username}
+          style={{width: '100%', padding: '15px'}}
+        />
+      </div>
+      <div className="actions">
+        <button onClick={createRoom} disabled={loading}>
+          {loading ? 'Oluşturuluyor...' : '🎮 Yeni Oda Oluştur'}
+        </button>
+        <div className="or">veya</div>
+        <input 
+          id="joincode-input"
+          type="text"
+          placeholder="Oda kodu (6 haneli)"
+          defaultValue={joinCode}
+          maxLength={6}
+          style={{width: '100%', padding: '15px'}}
+        />
+        <button onClick={joinRoom} disabled={loading}>
+          {loading ? 'Katılıyor...' : '🚪 Odaya Katıl'}
+        </button>
       </div>
     </div>
   );
-};
 
+  const RoomView = () => {
+    return (
+      <div className="room">
+        <div className="room-header">
+          <h3>Oda Kodu: <span className="code">{roomCode}</span></h3>
+          <p>Bu kodu arkadaşlarınla paylaş!</p>
+          <p style={{color: '#00d4ff', marginTop: '10px'}}>
+            👥 Odada {users.length} kişi var
+          </p>
+          {isHost && <span className="host-badge">👑 Host</span>}
+        </div>
+
+        <div className="lobby-stats">
+          <h4>🏆 Canlı Skor Tablosu</h4>
+          <div className="stats-table">
+            {users.length === 0 ? (
+              <p style={{color: 'rgba(255,255,255,0.5)'}}>Henüz kimse yok...</p>
+            ) : (
+              users.sort((a, b) => (b.known || 0) - (a.known || 0)).map((user, index) => (
+                <div key={index} className={`stat-row ${user.username === username ? 'me' : ''}`}>
+                  <span className="rank">#{index + 1}</span>
+                  <span className="avatar">{user.avatar || '👤'}</span>
+                  <span className="name">{user.username} {user.username === username && '(Sen)'}</span>
+                  <span className="score-detail">
+                    <span className="studied">📚 {user.studied || 0}</span>
+                    <span className="correct">✓ {user.known || 0}</span>
+                    <span className="wrong">✗ {(user.studied || 0) - (user.known || 0)}</span>
+                  </span>
+                  {user.isHost && <span className="host-icon">👑</span>}
+                </div>
+              ))
+            )}
+          </div>
+          <p className="stats-legend">
+            <small>📚 Toplam | ✓ Doğru | ✗ Yanlış</small>
+          </p>
+        </div>
+
+        <div className="room-actions">
+          <button onClick={() => setCurrentView('practice')}>▶️ Çalışmaya Başla</button>
+          <button className="btn-secondary" onClick={leaveRoom}>🚪 Odadan Çık</button>
+        </div>
+      </div>
+    );
+  };
+
+  // ANA RENDER
   return (
     <div className="app">
       <header className="header">
         <h1>YDT Kelime Pratiği</h1>
-        
         <Navigation />
       </header>
       <main>
