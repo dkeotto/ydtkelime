@@ -66,53 +66,50 @@ io.on('connection', (socket) => {
   console.log('✅ User connected:', socket.id);
   
   // ODA OLUŞTURMA - Host burada belirlenir!
-  socket.on('create-room', ({ username, avatar }, callback) => {
-    try {
-      if (!username || username.trim().length < 2) {
-        if (callback) callback({ success: false, error: 'Geçerli kullanıcı adı girin (en az 2 karakter)' });
-        return;
-      }
-
-      const roomId = uuidv4();
-      const roomCode = generateRoomCode();
-      const userAvatar = avatar || '👤';
-      
-      // Oda oluştur
-      rooms.set(roomCode, {
-        id: roomId,
-        code: roomCode,
-        createdAt: new Date(),
-        isActive: true
-      });
-      
-      // Host'u kaydet (güvenlik için server tarafında!)
-      roomHosts.set(roomCode, username);
-      
-      // Stats başlat
-      roomStats.set(roomCode, {
-        [username]: { 
-          studied: 0, 
-          known: 0, 
-          unknown: 0,
-          avatar: userAvatar
-        }
-      });
-      
-      console.log(`🏠 Room created: ${roomCode} by ${username} (Host)`);
-      
-      if (callback) {
-        callback({ 
-          success: true, 
-          roomCode,
-          avatar: userAvatar,
-          isHost: true  // Server tarafında belirleniyor!
-        });
-      }
-    } catch (error) {
-      console.error('Error creating room:', error);
-      if (callback) callback({ success: false, error: error.message });
+socket.on('create-room', async ({ username, avatar }, callback) => {
+  try {
+    if (!username || username.trim().length < 2) {
+      callback?.({ success: false, error: 'Geçerli kullanıcı adı girin' });
+      return;
     }
-  });
+
+    const roomId = uuidv4();
+    const roomCode = generateRoomCode();
+    const userAvatar = avatar || '👤';
+    
+    rooms.set(roomCode, {
+      id: roomId,
+      code: roomCode,
+      createdAt: new Date(),
+      isActive: true
+    });
+    
+    roomHosts.set(roomCode, username);
+    
+    roomStats.set(roomCode, {
+      [username]: { 
+        studied: 0, 
+        known: 0, 
+        unknown: 0,
+        avatar: userAvatar
+      }
+    });
+    
+    console.log(`🏠 Room created: ${roomCode} by ${username}`);
+    
+    // BAŞARILI - callback mutlaka çağrılmalı
+    callback({ 
+      success: true, 
+      roomCode,
+      avatar: userAvatar,
+      isHost: true
+    });
+    
+  } catch (error) {
+    console.error('Error creating room:', error);
+    callback?.({ success: false, error: error.message });
+  }
+});
   
   // ODAYA KATILMA
   socket.on('join-room', ({ roomCode, username, avatar }, callback) => {

@@ -2051,6 +2051,8 @@ function App() {
   const [isFlipped, setIsFlipped] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const [showExample, setShowExample] = useState(false);
+  const [showAvatarPopup, setShowAvatarPopup] = useState(false);
+  const avatarPopupRef = useRef(null);
   const [stats, setStats] = useState(() => {
     try {
       const saved = localStorage.getItem('ydt_stats');
@@ -2163,6 +2165,16 @@ function App() {
 
   // LOCALSTORAGE EFFECT'LERİ
   useEffect(() => {
+  const handleClickOutside = (event) => {
+    if (avatarPopupRef.current && !avatarPopupRef.current.contains(event.target)) {
+      setShowAvatarPopup(false);
+    }
+  };
+  document.addEventListener('mousedown', handleClickOutside);
+  return () => document.removeEventListener('mousedown', handleClickOutside);
+}, []);
+  
+  useEffect(() => {
     localStorage.setItem('ydt_stats', JSON.stringify(stats));
   }, [stats]);
 
@@ -2177,6 +2189,7 @@ function App() {
       setError('Sunucuya bağlanılamıyor');
       setLoading(false);
     });
+    
 
     socket.on('connect', () => {
       console.log('Socket bağlandı:', socket.id);
@@ -2266,53 +2279,46 @@ function App() {
   }, [sortedWordsList, searchTerm]);
 
   // ODA FONKSİYONLARI
-  const createRoom = () => {
-    const usernameInput = document.getElementById('username-input');
-    const usernameValue = usernameInput ? usernameInput.value.trim() : '';
+const createRoom = () => {
+  const usernameInput = document.getElementById('username-input');
+  const usernameValue = usernameInput ? usernameInput.value.trim() : '';
+  
+  if (!usernameValue) {
+    setError('Lütfen kullanıcı adı girin');
+    return;
+  }
+  
+  setLoading(true);
+  setError('');
+  setUsername(usernameValue);
+  
+  // TEK EMİT YETERLİ - create-room zaten join işlemi yapıyor
+  socket.emit('create-room', { 
+    username: usernameValue,
+    avatar: selectedAvatar 
+  }, (response) => {
+    setLoading(false);
     
-    if (!usernameValue) {
-      setError('Lütfen kullanıcı adı girin');
+    if (!response || !response.success) {
+      setError(response?.error || 'Oda oluşturulamadı');
       return;
     }
     
-    setLoading(true);
-    setError('');
-    setUsername(usernameValue);
-    
-    socket.emit('create-room', { 
+    // BAŞARILI - direkt odaya katılmış gibi işlem yap
+    setRoomCode(response.roomCode);
+    setAvatar(response.avatar || selectedAvatar);
+    setIsHost(true);
+    setIsInRoom(true);
+    setUsers([{
       username: usernameValue,
-      avatar: selectedAvatar 
-    }, (createResponse) => {
-      if (!createResponse.success) {
-        setError(createResponse.error || 'Oda oluşturulamadı');
-        setLoading(false);
-        return;
-      }
-      
-      setAvatar(createResponse.avatar || selectedAvatar);
-      
-      socket.emit('join-room', { 
-        roomCode: createResponse.roomCode, 
-        username: usernameValue,
-        isHost: true,
-        avatar: createResponse.avatar || selectedAvatar
-      }, (joinResponse) => {
-        setLoading(false);
-        
-        if (joinResponse.success) {
-          setRoomCode(joinResponse.roomCode);
-          setUsers(joinResponse.users || []);
-          setIsHost(joinResponse.isHost || false);
-          setAvatar(joinResponse.avatar || selectedAvatar);
-          setIsInRoom(true);
-          setError('');
-          setCurrentView('room');
-        } else {
-          setError(joinResponse.error || 'Odaya katılım başarısız');
-        }
-      });
-    });
-  };
+      isHost: true,
+      avatar: response.avatar || selectedAvatar,
+      studied: 0,
+      known: 0
+    }]);
+    setCurrentView('room');
+  });
+};
 
   const joinRoom = () => {
     const usernameInput = document.getElementById('username-input');
@@ -3010,55 +3016,69 @@ function App() {
     </div>
   );
 
-  const RoomMenuView = () => (
-    <div className="room-menu">
-      <h2>Çok Oyunculu Oda Sistemi</h2>
-      <p className="description">Arkadaşlarınla birlikte kelime çalışması yap!</p>
-      {error && <div className="error">{error}</div>}
+ const RoomMenuView = () => (
+  <div className="room-menu">
+    <h2>Çok Oyunculu Oda Sistemi</h2>
+    <p className="description">Arkadaşlarınla birlikte kelime çalışması yap!</p>
+    {error && <div className="error">{error}</div>}
+    
+    {/* YENİ AVATAR SEÇİCİ */}
+    <div className="avatar-selector-container" ref={avatarPopupRef}>
+      <label>Avatar:</label>
+      <button 
+        className="avatar-trigger"
+        onClick={() => setShowAvatarPopup(!showAvatarPopup)}
+      >
+        <span className="selected-avatar">{selectedAvatar}</span>
+        <span className="arrow">{showAvatarPopup ? '▲' : '▼'}</span>
+      </button>
       
-      <div className="avatar-selection">
-        <h4>Avatar Seç:</h4>
-        <div className="avatar-grid">
+      {showAvatarPopup && (
+        <div className="avatar-popup">
           {avatars.map((emoji) => (
             <button
               key={emoji}
-              className={`avatar-btn ${selectedAvatar === emoji ? 'selected' : ''}`}
-              onClick={() => setSelectedAvatar(emoji)}
+              className={`avatar-option ${selectedAvatar === emoji ? 'selected' : ''}`}
+              onClick={() => {
+                setSelectedAvatar(emoji);
+                setShowAvatarPopup(false);
+              }}
             >
               {emoji}
             </button>
           ))}
         </div>
-      </div>
-      
-      <div className="input-group">
-        <input 
-          id="username-input"
-          type="text"
-          placeholder="Kullanıcı adınız"
-          defaultValue={username}
-          style={{width: '100%', padding: '15px'}}
-        />
-      </div>
-      <div className="actions">
-        <button onClick={createRoom} disabled={loading}>
-          {loading ? 'Oluşturuluyor...' : '🎮 Yeni Oda Oluştur'}
-        </button>
-        <div className="or">veya</div>
-        <input 
-          id="joincode-input"
-          type="text"
-          placeholder="Oda kodu (6 haneli)"
-          defaultValue={joinCode}
-          maxLength={6}
-          style={{width: '100%', padding: '15px'}}
-        />
-        <button onClick={joinRoom} disabled={loading}>
-          {loading ? 'Katılıyor...' : '🚪 Odaya Katıl'}
-        </button>
-      </div>
+      )}
     </div>
-  );
+    
+    <div className="input-group">
+      <input 
+        id="username-input"
+        type="text"
+        placeholder="Kullanıcı adınız"
+        defaultValue={username}
+        style={{width: '100%', padding: '15px'}}
+      />
+    </div>
+    <div className="actions">
+      <button onClick={createRoom} disabled={loading}>
+        {loading ? 'Oluşturuluyor...' : '🎮 Yeni Oda Oluştur'}
+      </button>
+      <div className="or">veya</div>
+      <input 
+        id="joincode-input"
+        type="text"
+        placeholder="Oda kodu (6 haneli)"
+        defaultValue={joinCode}
+        maxLength={6}
+        style={{width: '100%', padding: '15px'}}
+      />
+      <button onClick={joinRoom} disabled={loading}>
+        {loading ? 'Katılıyor...' : '🚪 Odaya Katıl'}
+      </button>
+    </div>
+  </div>
+);
 
   const RoomView = () => {
     return (
