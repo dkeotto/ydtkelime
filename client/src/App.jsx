@@ -2115,7 +2115,10 @@ function App() {
   const [stats, setStats] = useState(() => loadFromStorage('stats', { studied: 0, known: 0, unknown: 0 }));
   const [wrongWords, setWrongWords] = useState(() => loadFromStorage('wrongWords', []));
   const [buttonCooldown, setButtonCooldown] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState('')
+  const [avatar, setAvatar] = useState('👤');
+  const [selectedAvatar, setSelectedAvatar] = useState('👤');
+  const avatars = ['👤', '🦊', '🐼', '🐨', '🦁', '🐯', '🐷', '🐸', '🐙', '🦄', '🐶', '🐱', '🐭', '🐹', '🐰', '🦝'];
   
   const feedbackCounter = useRef(0);
   const [feedback, setFeedback] = useState(null);
