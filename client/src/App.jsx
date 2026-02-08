@@ -2319,27 +2319,28 @@ function App() {
       setError(message);
       setLoading(false);
     });
+// ✅ DOĞRU
+useEffect(() => {
+  const timeout = setTimeout(() => {
+    if (loading) {
+      console.log('Timeout: loading kapatılıyor');
+      setLoading(false);
+      setError('Bağlantı zaman aşımına uğradı, tekrar deneyin');
+    }
+  }, 10000);
 
-    const timeout = setTimeout(() => {
-      if (loading) {
-        console.log('Timeout: loading kapatılıyor');
-        setLoading(false);
-        setError('Bağlantı zaman aşımına uğradı, tekrar deneyin');
-      }
-    }, 10000);
-
-                return () => {
-      clearTimeout(timeout);
-      socket.off('connect_error');
-      socket.off('connect');
-      socket.off('user-joined');
-      socket.off('user-left');
-      socket.off('sync-stats');
-      socket.off('room-joined');
-      socket.off('sync-word');
-      socket.off('error');
-    }    // ← sadece }
-  }, [loading]);   // ← }, [loading]);
+  return () => {
+    clearTimeout(timeout);
+    socket.off('connect_error');
+    socket.off('connect');
+    socket.off('user-joined');
+    socket.off('user-left');
+    socket.off('sync-stats');
+    socket.off('room-joined');
+    socket.off('sync-word');
+    socket.off('error');
+  };
+}, [loading]);  // ← }, [loading]); olmalı
 
   // OYUN TIMER'I
   useEffect(() => {
@@ -3229,10 +3230,11 @@ const createRoom = () => {
         {currentView === 'word-list' && <WordListView />}
         {currentView === 'wrong-words' && <WrongWordsView />}
         {currentView === 'room-menu' && <RoomMenuView />}
-        {currentView === 'room' && <RoomView />}
-      </main>
-    </div>
+      {currentView === 'room' && <RoomView />}
+    </main>
+  </div>
   );
-
+}  // ← BU } EKSİKTİ
 
 export default App;
+
