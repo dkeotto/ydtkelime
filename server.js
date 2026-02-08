@@ -7,20 +7,24 @@ const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 const server = http.createServer(app);
+
+// CORS ve transport ayarları
 const io = new Server(server, {
   cors: {
     origin: "*",
     methods: ["GET", "POST"]
-  }
+  },
+  transports: ['websocket', 'polling'],
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
 app.use(cors());
 app.use(express.json());
 
-// IN-MEMORY DATABASE (SQLite yerine)
-const rooms = new Map(); // roomCode -> {id, code, createdAt}
-const roomUsers = new Map(); // socketId -> {roomCode, username, isHost}
-const roomStats = {}; // roomCode -> {username: {known, unknown, studied}}
+const rooms = new Map();
+const roomUsers = new Map();
+const roomStats = {};
 
 function generateRoomCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -57,7 +61,7 @@ app.get('/api/rooms/:code', (req, res) => {
 
 // Socket.IO
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
+  console.log('✅ User connected:', socket.id);
   
   socket.on('create-room', ({ username }, callback) => {
     try {
@@ -71,26 +75,32 @@ io.on('connection', (socket) => {
         isActive: true
       });
       
-      callback({ success: true, roomCode });
+      console.log(`🏠 Room created: ${roomCode} by ${username}`);
+      
+      if (callback) callback({ success: true, roomCode });
     } catch (error) {
       console.error('Error creating room:', error);
-      callback({ success: false, error: 'Failed to create room' });
+      if (callback) callback({ success: false, error: error.message });
     }
   });
   
-  socket.on('join-room', ({ roomCode, username, isHost }) => {
+  socket.on('join-room', ({ roomCode, username, isHost }, callback) => {
     try {
+      console.log(`🚪 Join attempt: ${username} -> ${roomCode}`);
+      
       const room = rooms.get(roomCode);
       
       if (!room || !room.isActive) {
-        socket.emit('error', { message: 'Oda bulunamadı veya kapalı' });
+        console.log(`❌ Room not found: ${roomCode}`);
+        if (callback) callback({ success: false, error: 'Oda bulunamadı veya kapalı' });
         return;
       }
       
-      // Check if username exists in room
+      // Aynı kullanıcı adı kontrolü
       for (const [socketId, user] of roomUsers) {
         if (user.roomCode === roomCode && user.username === username) {
-          socket.emit('error', { message: 'Bu kullanıcı adı odada kullanılıyor' });
+          console.log(`❌ Username taken: ${username}`);
+          if (callback) callback({ success: false, error: 'Bu kullanıcı adı odada kullanılıyor' });
           return;
         }
       }
@@ -103,7 +113,7 @@ io.on('connection', (socket) => {
       }
       roomStats[roomCode][username] = { known: 0, unknown: 0, studied: 0 };
       
-      // Get all users in room
+      // Odadaki tüm kullanıcıları topla
       const users = [];
       for (const [socketId, user] of roomUsers) {
         if (user.roomCode === roomCode) {
@@ -111,20 +121,26 @@ io.on('connection', (socket) => {
         }
       }
       
-      socket.emit('room-joined', { 
-        roomCode, 
-        users,
-        isHost
-      });
+      console.log(`✅ ${username} joined ${roomCode}. Users:`, users);
       
-      socket.emit('sync-stats', { stats: roomStats[roomCode] });
+      // Callback ile yanıt ver (acknowledgement)
+      if (callback) {
+        callback({ 
+          success: true,
+          roomCode, 
+          users,
+          isHost,
+          stats: roomStats[roomCode]
+        });
+      }
+      
+      // Diğer kullanıcılara bildir
       socket.to(roomCode).emit('user-joined', { username, socketId: socket.id });
       socket.to(roomCode).emit('sync-stats', { stats: roomStats[roomCode] });
       
-      console.log(`${username} joined room ${roomCode}`);
     } catch (error) {
-      console.error('Error joining room:', error);
-      socket.emit('error', { message: 'Odaya katılım başarısız: ' + error.message });
+      console.error('❌ Error joining room:', error);
+      if (callback) callback({ success: false, error: error.message });
     }
   });
 
@@ -147,7 +163,7 @@ io.on('connection', (socket) => {
   });
   
   socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
+    console.log('❌ User disconnected:', socket.id);
     const user = roomUsers.get(socket.id);
     if (user) {
       handleUserLeave(socket, user.roomCode, user.username);
@@ -161,7 +177,6 @@ io.on('connection', (socket) => {
       if (roomStats[roomCode]) {
         delete roomStats[roomCode][username];
         
-        // Check if room is empty
         let roomEmpty = true;
         for (const user of roomUsers.values()) {
           if (user.roomCode === roomCode) {
@@ -172,6 +187,7 @@ io.on('connection', (socket) => {
         
         if (roomEmpty) {
           delete roomStats[roomCode];
+          console.log(`🗑️ Room ${roomCode} is now empty, stats cleaned`);
         } else {
           io.to(roomCode).emit('user-left', { username });
           io.to(roomCode).emit('sync-stats', { stats: roomStats[roomCode] });
@@ -179,7 +195,7 @@ io.on('connection', (socket) => {
       }
       
       socket.leave(roomCode);
-      console.log(`${username} left room ${roomCode}`);
+      console.log(`👋 ${username} left room ${roomCode}`);
     } catch (error) {
       console.error('Error leaving room:', error);
     }
@@ -195,5 +211,5 @@ app.get('*', (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
