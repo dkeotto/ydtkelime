@@ -2263,51 +2263,81 @@ const createRoom = () => {
   
   console.log('Oda oluşturma isteği gönderiliyor...');
   
-  // Önce create-room, sonra join-room
-  socket.emit('create-room', { username: usernameValue }, (response) => {
-    if (response.success) {
-      console.log('Oda oluşturuldu:', response.roomCode);
-      // Şimdi odaya katıl
-      socket.emit('join-room', { 
-        roomCode: response.roomCode, 
-        username: usernameValue,
-        isHost: true
-      });
-    } else {
-      setError(response.error || 'Oda oluşturulamadı');
+  // Önce create-room
+  socket.emit('create-room', { username: usernameValue }, (createResponse) => {
+    if (!createResponse.success) {
+      setError(createResponse.error || 'Oda oluşturulamadı');
       setLoading(false);
+      return;
     }
+    
+    console.log('Oda oluşturuldu:', createResponse.roomCode);
+    
+    // Sonra join-room (callback ile)
+    socket.emit('join-room', { 
+      roomCode: createResponse.roomCode, 
+      username: usernameValue,
+      isHost: true
+    }, (joinResponse) => {
+      setLoading(false); // Loading'i kapat
+      
+      if (joinResponse.success) {
+        console.log('Odaya katılındı:', joinResponse);
+        setRoomCode(joinResponse.roomCode);
+        setUsers(joinResponse.users || []);
+        setIsHost(joinResponse.isHost || false);
+        setIsInRoom(true);
+        setError('');
+        setCurrentView('room');
+      } else {
+        setError(joinResponse.error || 'Odaya katılım başarısız');
+      }
+    });
   });
 };
 
   const joinRoom = () => {
-    const usernameInput = document.getElementById('username-input');
-    const joinCodeInput = document.getElementById('joincode-input');
-    const usernameValue = usernameInput ? usernameInput.value.trim() : '';
-    const codeValue = joinCodeInput ? joinCodeInput.value.trim() : '';
+  const usernameInput = document.getElementById('username-input');
+  const joinCodeInput = document.getElementById('joincode-input');
+  const usernameValue = usernameInput ? usernameInput.value.trim() : '';
+  const codeValue = joinCodeInput ? joinCodeInput.value.trim() : '';
+  
+  if (!usernameValue) {
+    setError('Lütfen kullanıcı adı girin');
+    return;
+  }
+  if (!codeValue || codeValue.length !== 6) {
+    setError('Lütfen geçerli 6 haneli oda kodu girin');
+    return;
+  }
+  
+  setLoading(true);
+  setError('');
+  setUsername(usernameValue);
+  setJoinCode(codeValue);
+  
+  console.log('Odaya katılıyor:', codeValue, 'Kullanıcı:', usernameValue);
+  
+  socket.emit('join-room', { 
+    roomCode: codeValue, 
+    username: usernameValue,
+    isHost: false
+  }, (response) => {
+    setLoading(false); // Loading'i kapat
     
-    if (!usernameValue) {
-      setError('Lütfen kullanıcı adı girin');
-      return;
+    if (response.success) {
+      console.log('Odaya katılındı:', response);
+      setRoomCode(response.roomCode);
+      setUsers(response.users || []);
+      setIsHost(response.isHost || false);
+      setIsInRoom(true);
+      setError('');
+      setCurrentView('room');
+    } else {
+      setError(response.error || 'Odaya katılım başarısız');
     }
-    if (!codeValue || codeValue.length !== 6) {
-      setError('Lütfen geçerli 6 haneli oda kodu girin');
-      return;
-    }
-    
-    setLoading(true);
-    setError('');
-    setUsername(usernameValue);
-    setJoinCode(codeValue);
-    
-    console.log('Odaya katılıyor:', codeValue, 'Kullanıcı:', usernameValue);
-    
-    socket.emit('join-room', { 
-      roomCode: codeValue, 
-      username: usernameValue,
-      isHost: false
-    });
-  };
+  });
+};
 
   const triggerCooldown = () => {
     setButtonCooldown(true);

@@ -97,65 +97,65 @@ io.on('connection', (socket) => {
     callback({ success: true, roomCode });
   }
 });
-  socket.on('join-room', ({ roomCode, username, isHost }, callback) => {
-    try {
-      console.log(`🚪 Join attempt: ${username} -> ${roomCode}`);
-      
-      const room = rooms.get(roomCode);
-      
-      if (!room || !room.isActive) {
-        console.log(`❌ Room not found: ${roomCode}`);
-        if (callback) callback({ success: false, error: 'Oda bulunamadı veya kapalı' });
+ socket.on('join-room', ({ roomCode, username, isHost }, callback) => {
+  try {
+    console.log(`🚪 Join attempt: ${username} -> ${roomCode}`);
+    
+    const room = rooms.get(roomCode);
+    
+    if (!room || !room.isActive) {
+      console.log(`❌ Room not found: ${roomCode}`);
+      if (callback) callback({ success: false, error: 'Oda bulunamadı veya kapalı' });
+      return;
+    }
+    
+    // Aynı kullanıcı adı kontrolü
+    for (const [socketId, user] of roomUsers) {
+      if (user.roomCode === roomCode && user.username === username) {
+        console.log(`❌ Username taken: ${username}`);
+        if (callback) callback({ success: false, error: 'Bu kullanıcı adı odada kullanılıyor' });
         return;
       }
-      
-      // Aynı kullanıcı adı kontrolü
-      for (const [socketId, user] of roomUsers) {
-        if (user.roomCode === roomCode && user.username === username) {
-          console.log(`❌ Username taken: ${username}`);
-          if (callback) callback({ success: false, error: 'Bu kullanıcı adı odada kullanılıyor' });
-          return;
-        }
-      }
-      
-      socket.join(roomCode);
-      roomUsers.set(socket.id, { roomCode, username, isHost });
-      
-      if (!roomStats[roomCode]) {
-        roomStats[roomCode] = {};
-      }
-      roomStats[roomCode][username] = { known: 0, unknown: 0, studied: 0 };
-      
-      // Odadaki tüm kullanıcıları topla
-      const users = [];
-      for (const [socketId, user] of roomUsers) {
-        if (user.roomCode === roomCode) {
-          users.push({ username: user.username, isHost: user.isHost });
-        }
-      }
-      
-      console.log(`✅ ${username} joined ${roomCode}. Users:`, users);
-      
-      // Callback ile yanıt ver (acknowledgement)
-      if (callback) {
-        callback({ 
-          success: true,
-          roomCode, 
-          users,
-          isHost,
-          stats: roomStats[roomCode]
-        });
-      }
-      
-      // Diğer kullanıcılara bildir
-      socket.to(roomCode).emit('user-joined', { username, socketId: socket.id });
-      socket.to(roomCode).emit('sync-stats', { stats: roomStats[roomCode] });
-      
-    } catch (error) {
-      console.error('❌ Error joining room:', error);
-      if (callback) callback({ success: false, error: error.message });
     }
-  });
+    
+    socket.join(roomCode);
+    roomUsers.set(socket.id, { roomCode, username, isHost });
+    
+    if (!roomStats[roomCode]) {
+      roomStats[roomCode] = {};
+    }
+    roomStats[roomCode][username] = { known: 0, unknown: 0, studied: 0 };
+    
+    // Odadaki tüm kullanıcıları topla
+    const users = [];
+    for (const [socketId, user] of roomUsers) {
+      if (user.roomCode === roomCode) {
+        users.push({ username: user.username, isHost: user.isHost });
+      }
+    }
+    
+    console.log(`✅ ${username} joined ${roomCode}. Users:`, users);
+    
+    // CALLBACK ile yanıt ver (event yerine)
+    if (callback) {
+      callback({ 
+        success: true,
+        roomCode, 
+        users,
+        isHost,
+        stats: roomStats[roomCode]
+      });
+    }
+    
+    // Diğer kullanıcılara bildir (event olarak)
+    socket.to(roomCode).emit('user-joined', { username, socketId: socket.id });
+    socket.to(roomCode).emit('sync-stats', { stats: roomStats[roomCode] });
+    
+  } catch (error) {
+    console.error('❌ Error joining room:', error);
+    if (callback) callback({ success: false, error: error.message });
+  }
+});
 
   socket.on('update-stats', ({ roomCode, username, stats }) => {
     if (roomStats[roomCode]) {
