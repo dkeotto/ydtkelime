@@ -206,19 +206,19 @@ callback({
       
       // Diğer kullanıcılara bildir
       socket.to(roomCode).emit('user-joined', { 
-        username, 
-        socketId: socket.id,
-        isHost,
-        avatar: userAvatar,
-        studied: 0,
-        known: 0
-      });
+  username, 
+  socketId: socket.id,
+  isHost,
+  avatar: userAvatar,
+  studied: 0,
+  known: 0
+});
       
       // Tüm odadakilere güncel stats gönder
        io.to(roomCode).emit('sync-stats', { 
-    stats: roomStat,
-    users: users  // ← BUNU EKLE
-  });
+  stats,
+  users  // ← BUNU EKLE
+});
 
       
     } catch (error) {

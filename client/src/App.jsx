@@ -2218,20 +2218,28 @@ function App() {
     });
 
     // Stats senkronizasyonu
-    socket.on('sync-stats', ({ stats }) => {
-      console.log('📊 Stats güncellendi:', stats);
-      setRoomStats(stats);
-      
-      // Kullanıcı listesini de güncelle
-      const usersList = Object.entries(stats).map(([name, data]) => ({
-        username: name,
-        isHost: data.isHost || false,
-        avatar: data.avatar || '👤',
-        studied: data.studied || 0,
-        known: data.known || 0
-      }));
-      setUsers(usersList);
-    });
+    socket.on('sync-stats', ({ stats, users: usersFromServer }) => {
+  console.log('📊 Stats geldi:', stats);
+  console.log('👥 Users geldi:', usersFromServer);
+  
+  setRoomStats(stats);
+  
+  // Eğer server users gönderdiyse onu kullan, yoksa stats'tan oluştur
+  if (usersFromServer && Array.isArray(usersFromServer)) {
+    setUsers(usersFromServer);
+  } else {
+    // Stats'tan users oluştur (yedek)
+    const usersList = Object.entries(stats || {}).map(([username, data]) => ({
+      username,
+      isHost: data.isHost || false,
+      avatar: data.avatar || '👤',
+      studied: data.studied || 0,
+      known: data.known || 0,
+      unknown: data.unknown || 0
+    }));
+    setUsers(usersList);
+  }
+});
 
    socket.on('room-joined', ({ roomCode, users, isHost: hostStatus, stats }) => {
   console.log('Odaya katılındı:', roomCode, 'Kullanıcılar:', users);
