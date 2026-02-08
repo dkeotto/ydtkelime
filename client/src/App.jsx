@@ -2165,22 +2165,23 @@ function App() {
 
   // LOCALSTORAGE EFFECT'LERİ
   useEffect(() => {
-  const handleClickOutside = (event) => {
-    if (avatarPopupRef.current && !avatarPopupRef.current.contains(event.target)) {
-      setShowAvatarPopup(false);
-    }
-  };
-  document.addEventListener('mousedown', handleClickOutside);
-  return () => document.removeEventListener('mousedown', handleClickOutside);
-}, []);
-  
-  useEffect(() => {
     localStorage.setItem('ydt_stats', JSON.stringify(stats));
   }, [stats]);
 
   useEffect(() => {
     localStorage.setItem('ydt_wrongWords', JSON.stringify(wrongWords));
   }, [wrongWords]);
+
+  // AVATAR POPUP EFFECT
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (avatarPopupRef.current && !avatarPopupRef.current.contains(event.target)) {
+        setShowAvatarPopup(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // SOCKET.IO EFFECT'LERİ
   useEffect(() => {
@@ -2189,6 +2190,88 @@ function App() {
       setError('Sunucuya bağlanılamıyor');
       setLoading(false);
     });
+
+    socket.on('connect', () => {
+      console.log('Socket bağlandı:', socket.id);
+    });
+
+    // Kullanıcı katıldığında
+    socket.on('user-joined', ({ username, socketId, isHost, avatar, studied, known }) => {
+      console.log('Kullanıcı katıldı:', username);
+      setUsers(prev => {
+        if (prev.find(u => u.username === username)) return prev;
+        return [...prev, { 
+          username, 
+          isHost: isHost || false, 
+          avatar: avatar || '👤',
+          studied: studied || 0,
+          known: known || 0
+        }];
+      });
+    });
+
+    // Kullanıcı ayrıldığında
+    socket.on('user-left', ({ username, socketId }) => {
+      console.log('Kullanıcı ayrıldı:', username);
+      setUsers(prev => prev.filter(u => u.username !== username));
+    });
+
+    // Stats senkronizasyonu
+    socket.on('sync-stats', ({ stats }) => {
+      setRoomStats(stats);
+      setUsers(prev => prev.map(user => ({
+        ...user,
+        studied: stats[user.username]?.studied || 0,
+        known: stats[user.username]?.known || 0,
+        avatar: stats[user.username]?.avatar || user.avatar || '👤'
+      })));
+    });
+
+    socket.on('room-joined', ({ roomCode, users, isHost: hostStatus, stats }) => {
+      console.log('Odaya katılındı:', roomCode, 'Kullanıcılar:', users);
+      setRoomCode(roomCode);
+      setUsers(users || []);
+      setIsHost(hostStatus || false);
+      setIsInRoom(true);
+      setRoomStats(stats || {});
+      setError('');
+      setLoading(false);
+      setCurrentView('room');
+    });
+
+    socket.on('sync-word', ({ wordIndex }) => {
+      setCurrentWordIndex(wordIndex);
+      setIsFlipped(false);
+      setShowHint(false);
+      setShowExample(false);
+    });
+
+    socket.on('error', ({ message }) => {
+      setError(message);
+      setLoading(false);
+    });
+
+    const timeout = setTimeout(() => {
+      if (loading) {
+        console.log('Timeout: loading kapatılıyor');
+        setLoading(false);
+        setError('Bağlantı zaman aşımına uğradı, tekrar deneyin');
+      }
+    }, 10000);
+
+    return () => {
+      clearTimeout(timeout);
+      socket.off('connect_error');
+      socket.off('connect');
+      socket.off('user-joined');
+      socket.off('user-left');
+      socket.off('sync-stats');
+      socket.off('room-joined');
+      socket.off('sync-word');
+      socket.off('error');
+    };
+  }, [loading]);
+  
     
 
     socket.on('connect', () => {
@@ -2245,18 +2328,18 @@ function App() {
       }
     }, 10000);
 
-    return () => {
+            return () => {
       clearTimeout(timeout);
       socket.off('connect_error');
       socket.off('connect');
-      socket.off('room-joined');
       socket.off('user-joined');
       socket.off('user-left');
       socket.off('sync-stats');
+      socket.off('room-joined');
       socket.off('sync-word');
       socket.off('error');
-    };
-  }, [loading]);
+    }
+    }, [loading]);
 
   // OYUN TIMER'I
   useEffect(() => {
@@ -2292,7 +2375,6 @@ const createRoom = () => {
   setError('');
   setUsername(usernameValue);
   
-  // TEK EMİT YETERLİ - create-room zaten join işlemi yapıyor
   socket.emit('create-room', { 
     username: usernameValue,
     avatar: selectedAvatar 
@@ -2304,18 +2386,23 @@ const createRoom = () => {
       return;
     }
     
-    // BAŞARILI - direkt odaya katılmış gibi işlem yap
     setRoomCode(response.roomCode);
     setAvatar(response.avatar || selectedAvatar);
     setIsHost(true);
     setIsInRoom(true);
-    setUsers([{
+    
+    // ÖNEMLİ: Kullanıcı listesini response'tan al
+    // Tek kişi olduğu için sadece kendini göster
+    const initialUsers = response.users || [{
       username: usernameValue,
       isHost: true,
       avatar: response.avatar || selectedAvatar,
       studied: 0,
       known: 0
-    }]);
+    }];
+    
+    setUsers(initialUsers);
+    setRoomStats(response.stats || {});
     setCurrentView('room');
   });
 };
@@ -3146,6 +3233,6 @@ const createRoom = () => {
       </main>
     </div>
   );
-}
+
 
 export default App;

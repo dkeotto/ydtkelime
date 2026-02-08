@@ -86,25 +86,34 @@ socket.on('create-room', async ({ username, avatar }, callback) => {
     
     roomHosts.set(roomCode, username);
     
-    roomStats.set(roomCode, {
+    // Stats'a host'u ekle
+    const initialStats = {
       [username]: { 
         studied: 0, 
         known: 0, 
         unknown: 0,
         avatar: userAvatar
       }
-    });
+    };
+    roomStats.set(roomCode, initialStats);
     
     console.log(`🏠 Room created: ${roomCode} by ${username}`);
     
-    // BAŞARILI - callback mutlaka çağrılmalı
-    callback({ 
-      success: true, 
-      roomCode,
-      avatar: userAvatar,
-      isHost: true
-    });
-    
+    // BAŞARILI - users listesi ve stats ile birlikte dön
+callback({ 
+  success: true, 
+  roomCode,
+  avatar: userAvatar,
+  isHost: true,
+  users: [{  // ← BU EKLENDİ
+    username,
+    isHost: true,
+    avatar: userAvatar,
+    studied: 0,
+    known: 0
+  }],
+  stats: initialStats  // ← BU EKLENDİ
+});
   } catch (error) {
     console.error('Error creating room:', error);
     callback?.({ success: false, error: error.message });
