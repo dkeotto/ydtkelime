@@ -64,26 +64,39 @@ io.on('connection', (socket) => {
   console.log('✅ User connected:', socket.id);
   
   socket.on('create-room', ({ username }, callback) => {
-    try {
-      const roomId = uuidv4();
-      const roomCode = generateRoomCode();
-      
-      rooms.set(roomCode, {
-        id: roomId,
-        code: roomCode,
-        createdAt: new Date(),
-        isActive: true
-      });
-      
-      console.log(`🏠 Room created: ${roomCode} by ${username}`);
-      
-      if (callback) callback({ success: true, roomCode });
-    } catch (error) {
-      console.error('Error creating room:', error);
-      if (callback) callback({ success: false, error: error.message });
-    }
+  const roomId = uuidv4();
+  const roomCode = generateRoomCode();
+  
+  rooms.set(roomCode, {
+    id: roomId,
+    code: roomCode,
+    createdAt: new Date(),
+    isActive: true
   });
   
+  console.log(`🏠 Room created: ${roomCode} by ${username}`);
+  
+  if (callback) {
+    callback({ success: true, roomCode });
+  }
+});
+  socket.on('create-room', ({ username }, callback) => {
+  const roomId = uuidv4();
+  const roomCode = generateRoomCode();
+  
+  rooms.set(roomCode, {
+    id: roomId,
+    code: roomCode,
+    createdAt: new Date(),
+    isActive: true
+  });
+  
+  console.log(`🏠 Room created: ${roomCode} by ${username}`);
+  
+  if (callback) {
+    callback({ success: true, roomCode });
+  }
+});
   socket.on('join-room', ({ roomCode, username, isHost }, callback) => {
     try {
       console.log(`🚪 Join attempt: ${username} -> ${roomCode}`);
