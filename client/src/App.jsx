@@ -2328,7 +2328,7 @@ function App() {
       }
     }, 10000);
 
-            return () => {
+                return () => {
       clearTimeout(timeout);
       socket.off('connect_error');
       socket.off('connect');
@@ -2338,8 +2338,8 @@ function App() {
       socket.off('room-joined');
       socket.off('sync-word');
       socket.off('error');
-    }
-    }, [loading]);
+    }    // ← sadece }
+  }, [loading]);   // ← }, [loading]);
 
   // OYUN TIMER'I
   useEffect(() => {
